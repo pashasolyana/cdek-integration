@@ -21,10 +21,19 @@
                 <span class="label">{{ col.label }}</span>
                 <span v-if="col.sortable" class="sort">
                   <i class="asc" :class="{ active: sort.key === col.key && sort.dir === 'asc' }" />
-                  <i class="desc" :class="{ active: sort.key === col.key && sort.dir === 'desc' }" />
+                  <i
+                    class="desc"
+                    :class="{ active: sort.key === col.key && sort.dir === 'desc' }"
+                  />
                 </span>
-                <button class="filter-btn" :class="{ active: isFiltered(col.key) }" @click.stop="openFilter(col.key, $event)">
-                  <svg viewBox="0 0 24 24" class="funnel" aria-hidden="true"><path d="M3 5h18l-7.5 8v4.5L9 19v-6L3 5z"/></svg>
+                <button
+                  class="filter-btn"
+                  :class="{ active: isFiltered(col.key) }"
+                  @click.stop="openFilter(col.key, $event)"
+                >
+                  <svg viewBox="0 0 24 24" class="funnel" aria-hidden="true">
+                    <path d="M3 5h18l-7.5 8v4.5L9 19v-6L3 5z" />
+                  </svg>
                 </button>
               </div>
             </th>
@@ -34,14 +43,19 @@
           <tr v-for="(row, i) in pagedRows" :key="row.id ?? i">
             <td class="col-check">
               <label class="checkbox">
-                <input type="checkbox" :checked="selectedIds.has(row.id ?? i)" @change="toggleRow(row, i)" />
+                <input
+                  type="checkbox"
+                  :checked="selectedIds.has(row.id ?? i)"
+                  @change="toggleRow(row, i)"
+                />
                 <span></span>
               </label>
             </td>
-            <td v-for="col in visibleColumns"
-                :key="col.key + '-' + (row.id ?? i)"
-                :class="['td', 'col-' + col.key, col.align ? 'align-' + col.align : '']"
-                :style="col.width ? { width: col.width + 'px' } : null"
+            <td
+              v-for="col in visibleColumns"
+              :key="col.key + '-' + (row.id ?? i)"
+              :class="['td', 'col-' + col.key, col.align ? 'align-' + col.align : '']"
+              :style="col.width ? { width: col.width + 'px' } : null"
             >
               <template v-if="cellFormat(col) === 'link'">
                 <a href="#" class="link">{{ row[col.key] }}</a>
@@ -54,7 +68,11 @@
                 <span class="status-text">{{ row[col.key] }}</span>
               </template>
               <template v-else>
-                <span :title="col.ellipsis ? row[col.key] : null" :class="{ 'ellipsis': col.ellipsis }">{{ row[col.key] }}</span>
+                <span
+                  :title="col.ellipsis ? row[col.key] : null"
+                  :class="{ ellipsis: col.ellipsis }"
+                  >{{ row[col.key] }}</span
+                >
               </template>
             </td>
           </tr>
@@ -72,14 +90,23 @@
       </div>
       <div class="filter-select-all">
         <label class="checkbox">
-          <input type="checkbox" :checked="isAllOptionsChecked" @change="toggleSelectAllOptions($event)" />
+          <input
+            type="checkbox"
+            :checked="isAllOptionsChecked"
+            @change="toggleSelectAllOptions($event)"
+          />
           <span></span>
         </label>
         <span class="sel-all-label">Выделить все</span>
       </div>
       <div class="filter-list">
         <label v-for="opt in filteredOptions" :key="opt.token" class="option">
-          <input type="checkbox" :value="opt.token" :checked="filter.tempSelected.has(opt.token)" @change="onTempToggle(opt.token, $event)" />
+          <input
+            type="checkbox"
+            :value="opt.token"
+            :checked="filter.tempSelected.has(opt.token)"
+            @change="onTempToggle(opt.token, $event)"
+          />
           <span class="opt-label">{{ opt.display }}</span>
         </label>
       </div>
@@ -91,12 +118,12 @@
     </div>
 
     <div class="table-footer">
-<div class="left">Всего {{ rows.length }} {{ pluralizeRecords(rows.length) }}</div> 
-<div class="center">
-  <button class="icon-btn" @click="prevPage" :disabled="currentPage === 1">‹</button>
-  <span>{{ currentPage }} / {{ totalPages }}</span>
-  <button class="icon-btn" @click="nextPage" :disabled="currentPage === totalPages">›</button>
-</div>
+      <div class="left">Всего {{ rows.length }} {{ pluralizeRecords(rows.length) }}</div>
+      <div class="center">
+        <button class="icon-btn" @click="prevPage" :disabled="currentPage === 1">‹</button>
+        <span>{{ currentPage }} / {{ totalPages }}</span>
+        <button class="icon-btn" @click="nextPage" :disabled="currentPage === totalPages">›</button>
+      </div>
       <div class="right">
         <button class="icon-btn" title="Обновить" @click="$emit('refresh')">⟳</button>
         <button class="icon-btn" title="Настройки" @click="$emit('settings')">⚙️</button>
@@ -106,7 +133,6 @@
   </div>
 </template>
 
-
 <script setup>
 import { computed, reactive, ref, onMounted, onBeforeUnmount } from 'vue'
 
@@ -115,11 +141,25 @@ const defaultColumns = [
   { key: 'date', label: 'Дата', width: 96, sortable: true },
   { key: 'carrier', label: 'Транспортная компания', width: 180, sortable: true },
   { key: 'orderNo', label: '№ заказа', width: 110, sortable: true, align: 'right', format: 'link' },
-  { key: 'track', label: 'Трек номер ТК', width: 140, sortable: true, align: 'right', format: 'link' },
+  {
+    key: 'track',
+    label: 'Трек номер ТК',
+    width: 140,
+    sortable: true,
+    align: 'right',
+    format: 'link',
+  },
   { key: 'recipient', label: 'Получатель', width: 160, sortable: true },
   { key: 'phone', label: 'Телефон получателя', width: 160, sortable: true },
   { key: 'address', label: 'Адрес', width: 520, sortable: false, ellipsis: true },
-  { key: 'cod', label: 'Налож. платеж', width: 120, sortable: true, align: 'right', format: 'money' },
+  {
+    key: 'cod',
+    label: 'Налож. платеж',
+    width: 120,
+    sortable: true,
+    align: 'right',
+    format: 'money',
+  },
   { key: 'rate', label: 'Тариф', width: 100, sortable: true, align: 'right', format: 'money' },
   { key: 'status', label: 'Статус', width: 110, sortable: true, format: 'status' },
 ]
@@ -137,7 +177,9 @@ function nextPage() {
 }
 const emit = defineEmits(['update:selection', 'refresh', 'settings', 'more'])
 
-const visibleColumns = computed(() => (props.columns && props.columns.length ? props.columns : defaultColumns))
+const visibleColumns = computed(() =>
+  props.columns && props.columns.length ? props.columns : defaultColumns,
+)
 function pluralizeRecords(n) {
   const mod10 = n % 10
   const mod100 = n % 100
@@ -167,7 +209,9 @@ function cellFormat(col) {
 
 const colMap = computed(() => {
   const m = {}
-  visibleColumns.value.forEach(c => { m[c.key] = c })
+  visibleColumns.value.forEach((c) => {
+    m[c.key] = c
+  })
   return m
 })
 
@@ -193,9 +237,11 @@ function sortValue(row, key) {
   const v = row[key]
   const fmt = cellFormat(colMap.value[key])
   if (fmt === 'money') {
-    const n = toNumberish(v); if (n !== null) return n
+    const n = toNumberish(v)
+    if (n !== null) return n
   }
-  const d = parseDateDMY(v); if (d !== null) return d
+  const d = parseDateDMY(v)
+  if (d !== null) return d
   if (typeof v === 'number') return v
   if (v === undefined || v === null) return ''
   return String(v).toLowerCase()
@@ -204,9 +250,15 @@ function sortValue(row, key) {
 // FILTERS
 const TOKEN_BLANK = '__BLANK__'
 const filters = reactive({})
-function isFiltered(key) { return filters[key] && filters[key].size > 0 }
-function valToToken(v) { return v == null || String(v).trim() === '' ? TOKEN_BLANK : String(v).trim() }
-function tokenToDisplay(t) { return t === TOKEN_BLANK ? '(пусто)' : t }
+function isFiltered(key) {
+  return filters[key] && filters[key].size > 0
+}
+function valToToken(v) {
+  return v == null || String(v).trim() === '' ? TOKEN_BLANK : String(v).trim()
+}
+function tokenToDisplay(t) {
+  return t === TOKEN_BLANK ? '(пусто)' : t
+}
 function rowMatchesAllFilters(row, exceptKey = null) {
   for (const k in filters) {
     if (exceptKey && k === exceptKey) continue
@@ -216,27 +268,47 @@ function rowMatchesAllFilters(row, exceptKey = null) {
   return true
 }
 function optionsForColumn(key) {
-  const base = props.rows.filter(r => rowMatchesAllFilters(r, key))
-  const set = new Set(base.map(r => valToToken(r[key])))
-  return Array.from(set).map(t => ({ token: t, display: tokenToDisplay(t) }))
+  const base = props.rows.filter((r) => rowMatchesAllFilters(r, key))
+  const set = new Set(base.map((r) => valToToken(r[key])))
+  return Array.from(set).map((t) => ({ token: t, display: tokenToDisplay(t) }))
 }
-const filter = reactive({ open: false, key: null, style: {}, search: '', options: [], tempSelected: new Set() })
+const filter = reactive({
+  open: false,
+  key: null,
+  style: {},
+  search: '',
+  options: [],
+  tempSelected: new Set(),
+})
 function openFilter(key, evt) {
   filter.key = key
   filter.search = ''
   filter.options = optionsForColumn(key)
   const current = filters[key]
-  filter.tempSelected = current?.size ? new Set(current) : new Set(filter.options.map(o => o.token))
+  filter.tempSelected = current?.size
+    ? new Set(current)
+    : new Set(filter.options.map((o) => o.token))
   const rect = evt.currentTarget.getBoundingClientRect()
-  filter.style = { left: rect.left + 'px', top: (rect.bottom + window.scrollY) + 'px' }
+  filter.style = { left: rect.left + 'px', top: rect.bottom + window.scrollY + 'px' }
   filter.open = true
 }
-function closeFilter() { filter.open = false }
-const filteredOptions = computed(() => filter.search ? filter.options.filter(o => o.display.toLowerCase().includes(filter.search.toLowerCase())) : filter.options)
-const isAllOptionsChecked = computed(() => filter.options.length && filter.tempSelected.size === filter.options.length)
-function toggleSelectAllOptions(e) { filter.tempSelected = new Set(e.target.checked ? filter.options.map(o => o.token) : []) }
+function closeFilter() {
+  filter.open = false
+}
+const filteredOptions = computed(() =>
+  filter.search
+    ? filter.options.filter((o) => o.display.toLowerCase().includes(filter.search.toLowerCase()))
+    : filter.options,
+)
+const isAllOptionsChecked = computed(
+  () => filter.options.length && filter.tempSelected.size === filter.options.length,
+)
+function toggleSelectAllOptions(e) {
+  filter.tempSelected = new Set(e.target.checked ? filter.options.map((o) => o.token) : [])
+}
 function onTempToggle(token, e) {
-  if (e.target.checked) filter.tempSelected.add(token); else filter.tempSelected.delete(token)
+  if (e.target.checked) filter.tempSelected.add(token)
+  else filter.tempSelected.delete(token)
   filter.tempSelected = new Set(filter.tempSelected)
 }
 function applyFilter() {
@@ -244,18 +316,24 @@ function applyFilter() {
   else filters[filter.key] = new Set(filter.tempSelected)
   closeFilter()
 }
-function clearFilterActive() { if (filter.key) delete filters[filter.key]; closeFilter() }
-function onGlobalClick(e) { if (filter.open && !document.querySelector('.filter-popover')?.contains(e.target)) closeFilter() }
+function clearFilterActive() {
+  if (filter.key) delete filters[filter.key]
+  closeFilter()
+}
+function onGlobalClick(e) {
+  if (filter.open && !document.querySelector('.filter-popover')?.contains(e.target)) closeFilter()
+}
 onMounted(() => document.addEventListener('click', onGlobalClick))
 onBeforeUnmount(() => document.removeEventListener('click', onGlobalClick))
 
 // DATA
-const filteredRows = computed(() => props.rows.filter(row => rowMatchesAllFilters(row)))
+const filteredRows = computed(() => props.rows.filter((row) => rowMatchesAllFilters(row)))
 const sortedRows = computed(() => {
   const list = [...filteredRows.value]
   const dir = sort.dir === 'asc' ? 1 : -1
   return list.sort((a, b) => {
-    const va = sortValue(a, sort.key), vb = sortValue(b, sort.key)
+    const va = sortValue(a, sort.key),
+      vb = sortValue(b, sort.key)
     if (va < vb) return -1 * dir
     if (va > vb) return 1 * dir
     return 0
@@ -272,7 +350,9 @@ const pagedRows = computed(() => {
 
 // SELECTION
 const selectedIds = ref(new Set())
-const allChecked = computed(() => sortedRows.value.length && selectedIds.value.size === sortedRows.value.length)
+const allChecked = computed(
+  () => sortedRows.value.length && selectedIds.value.size === sortedRows.value.length,
+)
 function toggleAll(e) {
   const on = e.target.checked
   selectedIds.value = new Set(on ? sortedRows.value.map((r, i) => r.id ?? i) : [])
@@ -280,7 +360,8 @@ function toggleAll(e) {
 }
 function toggleRow(row, i) {
   const id = row.id ?? i
-  if (selectedIds.value.has(id)) selectedIds.value.delete(id); else selectedIds.value.add(id)
+  if (selectedIds.value.has(id)) selectedIds.value.delete(id)
+  else selectedIds.value.add(id)
   selectedIds.value = new Set(selectedIds.value)
   emit('update:selection', Array.from(selectedIds.value))
 }
@@ -304,64 +385,310 @@ function statusClass(s) {
   flex: 1;
   text-align: center;
 }
-.shipments-table { font-family: Inter, system-ui, -apple-system, Segoe UI, Roboto, Arial, sans-serif; color: #222; position: relative; }
-.table-wrap { overflow: auto; border: 1px solid #e6e8eb; border-bottom: none; border-radius: 4px 4px 0 0; background: #fff; }
-.grid { width: 100%; border-collapse: separate; border-spacing: 0; min-width: 1280px; font-size: 12px; }
+.shipments-table {
+  font-family:
+    Inter,
+    system-ui,
+    -apple-system,
+    Segoe UI,
+    Roboto,
+    Arial,
+    sans-serif;
+  color: #222;
+  position: relative;
+}
+.table-wrap {
+  overflow: auto;
+  border: 1px solid #e6e8eb;
+  border-bottom: none;
+  border-radius: 4px 4px 0 0;
+  background: #fff;
+}
+.grid {
+  width: 100%;
+  border-collapse: separate;
+  border-spacing: 0;
+  min-width: 1280px;
+  font-size: 12px;
+}
 
-thead th { position: sticky; top: 0; background: #fafbfc; border-bottom: 1px solid #e6e8eb; color: #5b6774; font-weight: 600; height: 32px; padding: 0; }
-.th-inner { display: flex; align-items: center; gap: 6px; padding: 0 6px 0 10px; height: 32px; white-space: nowrap; }
-.th-inner.clickable { cursor: pointer; }
+thead th {
+  position: sticky;
+  top: 0;
+  background: #fafbfc;
+  border-bottom: 1px solid #e6e8eb;
+  color: #5b6774;
+  font-weight: 600;
+  height: 32px;
+  padding: 0;
+}
+.th-inner {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  padding: 0 6px 0 10px;
+  height: 32px;
+  white-space: nowrap;
 
-.col-check { width: 36px; text-align: center; }
-.align-right { text-align: right; }
+    span {
+    font-weight: bold;
+  }
+}
 
-.sort { display: inline-flex; flex-direction: column; gap: 2px; }
-.sort i { width: 0; height: 0; border-left: 4px solid transparent; border-right: 4px solid transparent; opacity: 0.35; }
-.sort .asc { border-bottom: 5px solid #6b7785; margin-top: -1px; }
-.sort .desc { border-top: 5px solid #6b7785; }
-.sort i.active { opacity: 1; border-bottom-color: #2f343a; border-top-color: #2f343a; }
+.th-inner.clickable {
+  cursor: pointer;
+}
 
-tbody td { border-bottom: 1px solid #eef0f2; padding: 6px 10px; height: 32px; vertical-align: middle; color: #2f343a; }
-tbody tr:hover td { background: #f7f9fb; }
-.ellipsis { max-width: 520px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; display: inline-block; }
+.col-check {
+  width: 36px;
+  text-align: center;
+}
+.align-right {
+  text-align: right;
+}
 
-.link { color: #1976d2; text-decoration: none; }
-.link:hover { text-decoration: underline; }
+.sort {
+  display: inline-flex;
+  flex-direction: column;
+  gap: 2px;
+}
+.sort i {
+  width: 0;
+  height: 0;
+  border-left: 4px solid transparent;
+  border-right: 4px solid transparent;
+  opacity: 0.35;
+}
+.sort .asc {
+  border-bottom: 5px solid #6b7785;
+  margin-top: -1px;
+}
+.sort .desc {
+  border-top: 5px solid #6b7785;
+}
+.sort i.active {
+  opacity: 1;
+  border-bottom-color: #2f343a;
+  border-top-color: #2f343a;
+}
 
-.checkbox { display: inline-flex; align-items: center; justify-content: center; position: relative; width: 14px; height: 14px; }
-.checkbox input { position: absolute; opacity: 0; width: 14px; height: 14px; margin: 0; }
-.checkbox span { width: 14px; height: 14px; border: 1px solid #c7cbd1; border-radius: 2px; background: #fff; box-shadow: inset 0 0 0 2px #fff; }
-.checkbox input:checked + span { background: #1a73e8; border-color: #1a73e8; box-shadow: inset 0 0 0 2px #1a73e8; }
-.checkbox input:checked + span:after { content: ''; display: block; line-height: 14px; font-size: 12px; color: #fff; text-align: center; }
+tbody td {
+  border-bottom: 1px solid #eef0f2;
+  padding: 6px 10px;
+  height: 32px;
+  vertical-align: middle;
+  color: #2f343a;
+}
+tbody tr:hover td {
+  background: #f7f9fb;
+}
+.ellipsis {
+  max-width: 520px;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  display: inline-block;
+}
 
-.status { display: inline-block; padding: 2px 6px; border-radius: 10px; font-size: 11px; line-height: 1; white-space: nowrap; }
+.link {
+  color: #1976d2;
+  text-decoration: none;
+}
+.link:hover {
+  text-decoration: underline;
+}
 
-.status-text { margin-left: 0 }
+.checkbox {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  position: relative;
+  width: 14px;
+  height: 14px;
+}
+.checkbox input {
+  position: absolute;
+  opacity: 0;
+  width: 14px;
+  height: 14px;
+  margin: 0;
+}
+.checkbox span {
+  width: 14px;
+  height: 14px;
+  border: 1px solid #c7cbd1;
+  border-radius: 2px;
+  background: #fff;
+  box-shadow: inset 0 0 0 2px #fff;
+}
+.checkbox input:checked + span {
+  background: #1a73e8;
+  border-color: #1a73e8;
+  box-shadow: inset 0 0 0 2px #1a73e8;
+}
+.checkbox input:checked + span:after {
+  content: '';
+  display: block;
+  line-height: 14px;
+  font-size: 12px;
+  color: #fff;
+  text-align: center;
+}
 
-.table-footer { display: flex; align-items: center; justify-content: space-between; gap: 8px; border: 1px solid #e6e8eb; border-top: none; border-radius: 0 0 4px 4px; background: #fff; padding: 6px 8px; font-size: 12px; color: #5b6774; }
-.icon-btn { border: 1px solid transparent; background: #fff; border-radius: 4px; padding: 2px 6px; font-size: 14px; cursor: pointer; }
-.icon-btn:hover { background: #f3f4f6; }
+.status {
+  display: inline-block;
+  padding: 2px 6px;
+  border-radius: 10px;
+  font-size: 11px;
+  line-height: 1;
+  white-space: nowrap;
+}
 
-tbody tr:nth-child(even) td { background: #fff; }
+.status-text {
+  margin-left: 0;
+}
 
-.filter-btn { margin-left: 2px; display: inline-flex; align-items: center; justify-content: center; width: 18px; height: 18px; border-radius: 4px; border: 1px solid transparent; background: transparent; cursor: pointer; }
-.filter-btn:hover { background: #eef2f5; }
-.funnel { width: 12px; height: 12px; fill: #6b7785; opacity: .55; }
-.filter-btn.active .funnel { fill: #1976d2; opacity: 1; }
+.table-footer {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+  border: 1px solid #e6e8eb;
+  border-top: none;
+  border-radius: 0 0 4px 4px;
+  background: #fff;
+  padding: 6px 8px;
+  font-size: 12px;
+  color: #5b6774;
+}
+.icon-btn {
+  border: 1px solid transparent;
+  background: #fff;
+  border-radius: 4px;
+  padding: 2px 6px;
+  font-size: 14px;
+  cursor: pointer;
+}
+.icon-btn:hover {
+  background: #f3f4f6;
+}
 
-.filter-popover { position: fixed; z-index: 9999; width: 260px; background: #fff; border: 1px solid #e6e8eb; border-radius: 6px; box-shadow: 0 8px 24px rgba(0,0,0,.08); overflow: hidden; }
-.filter-head { padding: 8px; border-bottom: 1px solid #f0f1f2; }
-.filter-search { width: 100%; height: 28px; font-size: 12px; padding: 4px 8px; border: 1px solid #d6d9de; border-radius: 4px; outline: none; }
-.filter-search:focus { border-color: #9eb9ff; box-shadow: 0 0 0 3px rgba(158,185,255,.35); }
-.filter-select-all { display: flex; align-items: center; gap: 8px; padding: 8px; border-bottom: 1px solid #f0f1f2; font-size: 12px; color: #2f343a; }
-.sel-all-label { user-select: none; }
-.filter-list { max-height: 220px; overflow: auto; padding: 6px 8px; display: grid; gap: 6px; }
-.option { display: grid; grid-auto-flow: column; grid-template-columns: 16px 1fr; align-items: center; gap: 8px; font-size: 12px; color: #2f343a; }
-.option input[type="checkbox"] { width: 14px; height: 14px; }
-.opt-label { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
-.filter-actions { display: flex; align-items: center; gap: 8px; padding: 8px; border-top: 1px solid #f0f1f2; }
-.filter-actions .spacer { flex: 1; }
-.btn { padding: 6px 10px; font-size: 12px; border-radius: 4px; border: 1px solid #d0d5dd; background: #fff; cursor: pointer; }
-.btn:hover { background: #f6f7f9; }
-.btn.ghost { color: #6b7785; }
+tbody tr:nth-child(even) td {
+  background: #fff;
+}
+
+.filter-btn {
+  margin-left: 2px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 18px;
+  height: 18px;
+  border-radius: 4px;
+  border: 1px solid transparent;
+  background: transparent;
+  cursor: pointer;
+}
+.filter-btn:hover {
+  background: #eef2f5;
+}
+.funnel {
+  width: 12px;
+  height: 12px;
+  fill: #6b7785;
+  opacity: 0.55;
+}
+.filter-btn.active .funnel {
+  fill: #1976d2;
+  opacity: 1;
+}
+
+.filter-popover {
+  position: fixed;
+  z-index: 9999;
+  width: 260px;
+  background: #fff;
+  border: 1px solid #e6e8eb;
+  border-radius: 6px;
+  box-shadow: 0 8px 24px rgba(0, 0, 0, 0.08);
+  overflow: hidden;
+}
+.filter-head {
+  padding: 8px;
+  border-bottom: 1px solid #f0f1f2;
+}
+.filter-search {
+  width: 100%;
+  height: 28px;
+  font-size: 12px;
+  padding: 4px 8px;
+  border: 1px solid #d6d9de;
+  border-radius: 4px;
+  outline: none;
+}
+.filter-search:focus {
+  border-color: #9eb9ff;
+  box-shadow: 0 0 0 3px rgba(158, 185, 255, 0.35);
+}
+.filter-select-all {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 8px;
+  border-bottom: 1px solid #f0f1f2;
+  font-size: 12px;
+  color: #2f343a;
+}
+.sel-all-label {
+  user-select: none;
+}
+.filter-list {
+  max-height: 220px;
+  overflow: auto;
+  padding: 6px 8px;
+  display: grid;
+  gap: 6px;
+}
+.option {
+  display: grid;
+  grid-auto-flow: column;
+  grid-template-columns: 16px 1fr;
+  align-items: center;
+  gap: 8px;
+  font-size: 12px;
+  color: #2f343a;
+}
+.option input[type='checkbox'] {
+  width: 14px;
+  height: 14px;
+}
+.opt-label {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.filter-actions {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 8px;
+  border-top: 1px solid #f0f1f2;
+}
+.filter-actions .spacer {
+  flex: 1;
+}
+.btn {
+  padding: 6px 10px;
+  font-size: 12px;
+  border-radius: 4px;
+  border: 1px solid #d0d5dd;
+  background: #fff;
+  cursor: pointer;
+}
+.btn:hover {
+  background: #f6f7f9;
+}
+.btn.ghost {
+  color: #6b7785;
+}
 </style>
