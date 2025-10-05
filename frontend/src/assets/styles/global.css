@@ -1,0 +1,27 @@
+@font-face {
+  font-family: 'Source Sans Pro ';
+  src: url('/fonts/SourceSansPro-Bold.woff2') format('woff2');
+  font-weight: 700;
+  font-style: normal;
+  font-display: swap;
+}
+
+@font-face {
+  font-family: 'Source Sans Pro';
+  src: url('/fonts/SourceSansPro-Black.woff2') format('woff2');
+  font-weight: 900;
+  font-style: normal;
+  font-display: swap;
+}
+
+:root {
+  --h: 56px;
+  --bg: #c9e0cb;
+  --border: #cfe4c9;
+  --brand: #0b0b0b;
+  --ok: #16a34a;
+  --link: #2a2f36;
+  --btn: #3b82f6;
+  --brandWhite: #ffffff;
+  --active: #f4bc52;
+}

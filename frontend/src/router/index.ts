@@ -3,6 +3,7 @@ import { useAuthStore } from '@/stores/auth'
 import HomeView from '../views/HomeView.vue'
 import LoginView from '../views/LoginView.vue'
 import RegisterView from '@/views/RegisterView.vue'
+import NotFoundView from '../views/NotFoundView.vue'
 
 const router = createRouter({
   history: createWebHistory(import.meta.env.BASE_URL),
@@ -17,31 +18,39 @@ const router = createRouter({
       path: '/login',
       name: 'login',
       component: LoginView,
-      meta: { guest: true, hideHeader: true }
+      meta: { guest: true, hideHeader: true },
     },
-      {
+    {
       path: '/r',
       name: 'register',
       component: RegisterView,
-      meta: { guest: true, hideHeader: true }
+      meta: { guest: true, hideHeader: true },
     },
-   
+    {
+      path: '/404',
+      name: 'not-found',
+      component: NotFoundView,
+    },
+    {
+      path: '/:pathMatch(.*)*',
+      redirect: '/404',
+    },
   ],
 })
 
 // Navigation guards
 router.beforeEach(async (to, from, next) => {
   const authStore = useAuthStore()
-  
+
   // Проверяем авторизацию при первом запуске
   if (!authStore.user) {
     await authStore.checkAuth()
   }
-  
+
   const isAuthenticated = authStore.isAuthenticated
-  const requiresAuth = to.matched.some(record => record.meta.requiresAuth)
-  const isGuestRoute = to.matched.some(record => record.meta.guest)
-  
+  const requiresAuth = to.matched.some((record) => record.meta.requiresAuth)
+  const isGuestRoute = to.matched.some((record) => record.meta.guest)
+
   if (requiresAuth && !isAuthenticated) {
     // Требуется авторизация, но пользователь не авторизован
     next('/login')
