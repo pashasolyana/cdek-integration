@@ -2,108 +2,283 @@
   <header class="topbar">
     <div class="topbar__inner">
       <a class="brand" href="/">
-        <span>BEGUN</span><span class="brand__ok">OK</span><span>.PRO</span>
+        <span class="brand__text">BEGUN</span><span class="brand__ok">OK</span
+        ><span class="brand__text">.PRO</span>
       </a>
 
       <nav class="menu">
-        <a href="#about">О нас</a>
-        <a href="#contacts">Контакты</a>
-        <a href="#offer">Оферта</a>
+        <a href="#about" :class="{ active: activeHash === '#about' }">О нас</a>
+        <a href="#contacts" :class="{ active: activeHash === '#contacts' }">Контакты</a>
+        <a href="#offer" :class="{ active: activeHash === '#offer' }">Оферта</a>
       </nav>
-
+    </div>
+    <div class="promo">
+      <div>
+        <button class="promo__btn">Подробнее</button>
+        <p class="promo__text">Приведи друга и получи бонус</p>
+      </div>
     </div>
   </header>
+  <div class="packages">
+    <nav class="actions actions--bar">
+      <button type="button" class="btn btn--first">Список отправлений</button>
+      <button type="button" class="btn btn--second">Создать заказ</button>
+      <button type="button" class="btn btn--empty" aria-label="Пустая кнопка"></button>
+      <button type="button" class="btn btn--empty" aria-label="Пустая кнопка"></button>
+      <button type="button" class="btn" disabled title="Недоступно">Печать этикеток</button>
+      <button type="button" class="btn" disabled title="Недоступно">Печать накладных</button>
+      <button type="button" class="btn btn--first">Отследить посылку</button>
+    </nav>
+    <button type="button" class="btn--icon" aria-label="Настройки">
+      <span aria-hidden="true">⚙</span>
+    </button>
+  </div>
 </template>
 
-<script setup lang="ts"></script>
+<script setup lang="ts">
+import { ref, onMounted, onBeforeUnmount } from 'vue'
+
+// track current hash for active menu highlighting
+const activeHash = ref<string>('')
+
+const syncActive = () => {
+  activeHash.value = window.location.hash || '#about'
+}
+
+onMounted(() => {
+  syncActive()
+  window.addEventListener('hashchange', syncActive)
+})
+
+onBeforeUnmount(() => {
+  window.removeEventListener('hashchange', syncActive)
+})
+</script>
 
 <style scoped>
-:root{
-  --h:56px;
-  --bg:#dfeeda;          /* фон шапки как на референсе */
-  --border:#cfe4c9;
-  --brand:#0b0b0b;
-  --ok:#16a34a;
-  --link:#2a2f36;
-  --btn:#3b82f6;
+@font-face {
+  font-family: 'Source Sans Pro ';
+  src: url('/fonts/SourceSansPro-Bold.woff2') format('woff2');
+  font-weight: 700;
+  font-style: normal;
+  font-display: swap;
+}
+
+@font-face {
+  font-family: 'Source Sans Pro';
+  src: url('/fonts/SourceSansPro-Black.woff2') format('woff2');
+  font-weight: 900;
+  font-style: normal;
+  font-display: swap;
+}
+
+:global(:root) {
+  --h: 56px;
+  --bg: #c9e0cb;
+  --border: #cfe4c9;
+  --brand: #0b0b0b;
+  --ok: #16a34a;
+  --link: #2a2f36;
+  --btn: #3b82f6;
+  --brandWhite: #ffffff;
+  --active: #f4bc52;
 }
 
 /* Шапка на всю ширину, фиксированная высота */
-.topbar{
-  height:var(--h);
-  background:var(--bg);
-  border-bottom:1px solid var(--border);
+.topbar {
+  height: var(--h);
+  background: var(--bg);
+  border-bottom: 1px solid var(--border);
+  display: flex;
+  justify-content: space-between;
 }
 
 /* Строгое выравнивание: бренд | меню | баннер */
-.topbar__inner{
-  height:var(--h);
-  max-width:1440px;
-  margin:0 auto;
-  padding:0 16px;
-  display:grid;
-  grid-template-columns:auto 1fr minmax(480px,600px);
-  align-items:center;
-  column-gap:24px;
+.topbar__inner {
+  height: var(--h);
+  max-width: 1440px;
+  padding: 0 16px;
+  display: grid;
+  grid-template-columns: auto 1fr; /* was: auto 1fr minmax(480px, 600px) */
+  align-items: center;
+  column-gap: 24px;
 }
 
-.brand{
-  color:var(--brand);
-  text-decoration:none;
-  white-space:nowrap;
-  font-weight:800;
-  font-size:28px;
-  letter-spacing:.4px;
-  line-height:1;
+.brand {
+  color: var(--brandWhite);
+  text-decoration: none;
+  white-space: nowrap;
+  font-size: 28px;
+  letter-spacing: 0.4px;
+  line-height: 1;
+  font-family: 'Source Sans Pro', sans-serif;
 }
-.brand__ok{ color:var(--ok); }
+.brand__text {
+  font-weight: 900;
+}
 
-.menu{
-  display:flex;
-  gap:24px;
+.brand__ok {
+  color: var(--brand);
+  font-weight: 900;
 }
-.menu a{
-  color:var(--link);
-  text-decoration:none;
-  font-weight:500;
-  font-size:15px;
+
+.menu {
+  display: flex;
+  gap: 24px;
+  align-items: center;
 }
-.menu a:hover{ opacity:.75; }
+.menu a {
+  color: var(--link);
+  text-decoration: none;
+  font-weight: 500;
+  font-size: 15px;
+}
+.menu a:hover {
+  opacity: 0.75;
+}
+.menu a.active {
+  color: var(--active);
+  font-weight: 700;
+}
+
+/* actions bar under topbar */
+.actions--bar {
+  max-width: 1440px;
+  padding: 11px 0 11px 16px;
+  justify-content: flex-end; /* complements .actions flex */
+}
+
+.packages {
+  background: var(--bg);
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  margin-top: 7px;
+}
+
+.actions {
+  display: flex;
+  gap: 8px;
+  justify-content: start;
+  align-items: center;
+  flex-wrap: wrap;
+  margin-top: 7px;
+  width: 100%;
+}
+
+.btn {
+  border-radius: 8px;
+  border: none;
+  background: #fff;
+  color: var(--link);
+
+  font-size: 14px;
+  line-height: 1;
+  cursor: pointer;
+}
+.btn:hover {
+  filter: brightness(0.98);
+}
+
+.btn--primary {
+  background: var(--btn);
+  border-color: var(--btn);
+  color: #fff;
+}
+
+.btn--first {
+  padding: 8px 16px;
+}
+
+.btn--second {
+  padding: 8px 60px 8px 48px;
+}
+
+.btn--empty {
+  height: 32px;
+  width: 48px;
+}
+
+.btn--icon {
+  width: 32px;
+  height: 32px;
+  padding: 0;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 26px;
+  margin-right: 16px;
+  border: none;
+  background: transparent;
+  color: #fff;
+  cursor: pointer;
+}
+
+.btn:disabled {
+  opacity: 0.5;
+  cursor: not-allowed;
+  background: #e5e7eb;
+  color: #6b7280;
+  border-color: #e5e7eb;
+  padding: 8px 26px;
+}
 
 /* Баннер как background, ничего не режется <img>-ом */
-.promo{
-  position:relative;
-  height:44px;
-  border-radius:12px;
-  background: url('/images/promo.jpg') left center / cover no-repeat; /* помести файл в /public/images/promo.jpg */
-  box-shadow: inset 0 0 0 1px rgba(0,0,0,.04);
+.promo {
+  position: relative;
+  height: 57px;
+  width: 533px;
+  background: url('../assets/images/promo.jpg') left center / cover no-repeat; /* помести файл в /public/images/promo.jpg */
+}
+
+.promo__text {
+  position: absolute;
+  left: 130px;
+  top: 50%;
+  transform: translateY(-50%);
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  color: #fff;
+  font-weight: 700;
+  font-size: 18px;
 }
 
 /* Кнопка поверх баннера */
-.promo__btn{
-  position:absolute;
-  right:12px;
-  top:50%;
-  transform:translateY(-50%);
-  padding:6px 14px;
-  border:0;
-  border-radius:10px;
-  background:var(--btn);
-  color:#fff;
-  font-weight:700;
-  font-size:12px;
-  line-height:1;
-  cursor:pointer;
+.promo__btn {
+  position: absolute;
+  right: 14px;
+  top: 50%;
+  transform: translateY(-50%);
+  padding: 8px 18px;
+  border: 0;
+  border-radius: 3px;
+  background: var(--btn);
+  color: #fff;
+  font-size: 12px;
+  line-height: 1;
+  cursor: pointer;
+  box-shadow: 0 8px 6px rgba(0, 0, 0, 0.1);
 }
-.promo__btn:hover{ filter:brightness(.96); }
+.promo__btn:hover {
+  filter: brightness(0.96);
+}
 
 /* Адаптив */
-@media (max-width:1024px){
-  .brand{ font-size:24px; }
-  .topbar__inner{ grid-template-columns:auto 1fr 420px; }
+@media (max-width: 1024px) {
+  .brand {
+    font-size: 24px;
+  }
+  .topbar__inner {
+    grid-template-columns: auto 1fr; /* was: auto 1fr 420px */
+  }
 }
-@media (max-width:820px){
-  .menu{ display:none; }
-  .topbar__inner{ grid-template-columns:auto 1fr; }
+@media (max-width: 820px) {
+  .menu {
+    display: none;
+  }
+  .topbar__inner {
+    grid-template-columns: auto 1fr;
+  }
 }
 </style>
