@@ -73,16 +73,144 @@ model ApiLog {
 }
 
 // Модель для хранения информации о заказах CDEK (для кэширования)
+/// Основная сущность локального заказа CDEK (шапка + агрегированные поля)
 model CdekOrder {
-  id           Int      @id @default(autoincrement())
-  cdekOrderId  String   @unique @map("cdek_order_id")
-  orderData    Json     @map("order_data")
-  status       String?
-  lastUpdated  DateTime @default(now()) @map("last_updated")
-  createdAt    DateTime @default(now()) @map("created_at")
+  id               Int       @id @default(autoincrement()) // Локальный автоинкрементный ID в нашей БД
 
-  @@map("cdek_orders")
+  // --- Поля из ответа CDEK / служебные идентификаторы
+  uuid             String?   @unique // UUID заказа в ИС СДЭК (entity.uuid в ответе)
+  cdekNumber       String?   // Номер СДЭК (related_entities[].cdek_number), появляется не всегда
+
+  // --- Поля из исходного запроса к CDEK / параметры заказа
+  type             Int       // Тип заказа: 1 — интернет-магазин, 2 — доставка
+  additionalTypes  Int[]     @default([]) // Доп. типы заказа (LTL, Forward, Fulfillment и т.д.)
+  number           String?   // Номер заказа в ИС клиента (только для типа «интернет-магазин»)
+  accompanyingNumber String? // Номер сопроводительной накладной (СНТ)
+  tariffCode       Int       // Код тарифа СДЭК (tariff_code)
+  comment          String?   // Комментарий к заказу
+  shipmentPoint    String?   // Код ПВЗ отправления при «от склада» (взаимоисключимо с from_location)
+  deliveryPoint    String?   // Код ПВЗ вручения при «до склада/постамата» (взаимоисключимо с to_location)
+  dateInvoice      DateTime? // Дата инвойса (обяз. для международных ИМ; делает заказ международным)
+  shipperName      String?   // Наименование грузоотправителя (международные ИМ)
+  shipperAddress   String?   // Адрес грузоотправителя (международные ИМ)
+
+  // --- Флаги/связанные процессы
+  isClientReturn   Boolean?  // Признак клиентского возврата (часть товара/чужая КС)
+  hasReverseOrder  Boolean?  // Нужно ли создавать реверсный заказ
+
+  // --- Печать/интеграционные ключи
+  developerKey     String?   // Ключ разработчика (header/field developer_key)
+  printType        String?   // Тип печатной формы, которую сформировать: "WAYBILL" | "BARCODE"
+  widgetToken      String?   // Токен CMS (widget_token), доп. данные интеграции
+
+  // --- Контакты/адреса: храним как JSON для устойчивости к изменениям API
+  senderJson       Json?     // Блок sender (Отправитель)
+  recipientJson    Json?     // Блок recipient (Получатель)
+  fromLocationJson Json?     // Блок from_location (адрес отправления)
+  toLocationJson   Json?     // Блок to_location (адрес вручения)
+
+  // --- Доп. услуги
+  servicesJson     Json?     // Массив services[] (код и параметр), в JSON
+
+  // --- Диагностика и аудит вызова
+  rawRequest       Json      // Полный исходный JSON запроса к /v2/orders
+  rawResponse      Json      // Полный JSON ответа от /v2/orders
+
+  // --- Состояние приёма запроса в СДЭК
+  requestState     String?   // Состояние запроса: ACCEPTED / SUCCESSFUL / INVALID и т.п. (requests[].state)
+  statusNote       String?   // Доп. пометка/тип запроса (requests[].type) или наша заметка
+
+  // --- Связи на детали заказа и журнал
+  packages         CdekOrderPackage[] // Места/упаковки и их товарные позиции
+  requests         CdekOrderRequest[] // Журнал «requests» из ответа СДЭК (ошибки/предупреждения/статусы)
+  relatedEntities  CdekOrderRelated[] // Связанные сущности (например, реверсный заказ)
+
+  // --- Тех. поля
+  createdAt        DateTime  @default(now()) // Дата создания записи в БД
+  updatedAt        DateTime  @updatedAt      // Дата последнего обновления записи
 }
+
+/// Место (упаковка) в составе заказа CDEK
+model CdekOrderPackage {
+  id        Int        @id @default(autoincrement()) // Локальный ID упаковки
+  orderId   Int                                     // FK на CdekOrder
+  order     CdekOrder  @relation(fields: [orderId], references: [id], onDelete: Cascade)
+
+  number    String?   // Идентификатор места/упаковки (number)
+  weight    Int?      // Вес (обычно в граммах, как в API)
+  length    Int?      // Габарит длина (мм/см — как отдаёт/ожидает твоя интеграция)
+  width     Int?      // Габарит ширина
+  height    Int?      // Габарит высота
+  comment   String?   // Комментарий к месту
+  packageId String?   // Внешний package_id (если используется для сопоставления)
+
+  items     CdekOrderItem[] // Товарные позиции, входящие в место
+
+  createdAt DateTime @default(now()) // Дата создания записи в БД
+}
+
+/// Товарная позиция внутри места
+model CdekOrderItem {
+  id         Int               @id @default(autoincrement()) // Локальный ID позиции
+  packageId  Int                                      // FK на CdekOrderPackage
+  package    CdekOrderPackage  @relation(fields: [packageId], references: [id], onDelete: Cascade)
+
+  name       String?   // Наименование товара
+  wareKey    String?   // Внутренний артикул/код товара (ware_key)
+  marking    String?   // Маркировка (например, ЧЗ, DataMatrix и т.д.)
+  payment    Json?     // Объект оплаты по позиции: { value, vat_sum, vat_rate }
+  weight     Int?      // Вес позиции (обычно в граммах)
+  weightGross Int?     // Вес брутто (если передаётся)
+  amount     Int?      // Количество единиц товара
+  nameI18n   String?   // Наименование на англ. (name_i18n), для международных
+  brand      String?   // Бренд товара
+  countryCode String?  // Страна происхождения (ISO alpha-2)
+  material   String?   // Материал (для таможни)
+  wifiGsm    Boolean?  // Наличие модулей связи (Wi-Fi/GSM) — влияет на таможню
+  url        String?   // URL карточки товара
+  sellerJson Json?     // Вложенный seller в item (если указываешь продавца на уровне позиции)
+  cost       Int?      // Стоимость единицы
+  feacnCode  String?   // ТН ВЭД (FEACN) код
+  jewelUin   String?   // Идентификатор изделия (ювелирка и т.п.)
+  used       Boolean?  // Признак «б/у» (used)
+
+  createdAt  DateTime  @default(now()) // Дата создания записи
+}
+
+/// Журнал обработки запроса в СДЭК (массив requests[] из ответа /v2/orders)
+model CdekOrderRequest {
+  id           Int       @id @default(autoincrement()) // Локальный ID записи журнала
+  orderId      Int                                     // FK на CdekOrder
+  order        CdekOrder @relation(fields: [orderId], references: [id], onDelete: Cascade)
+
+  requestUuid  String?   // UUID конкретного запроса (requests[].request_uuid)
+  type         String?   // Тип запроса/операции (requests[].type)
+  dateTime     DateTime? // Время (requests[].date_time)
+  state        String?   // Состояние: ACCEPTED / SUCCESSFUL / INVALID и т.п. (requests[].state)
+  errorsJson   Json?     // Массив ошибок (requests[].errors[])
+  warningsJson Json?     // Массив предупреждений (requests[].warnings[])
+
+  createdAt    DateTime  @default(now()) // Дата записи в БД
+}
+
+/// Связанные сущности, которые СДЭК возвращает рядом с заказом (related_entities[])
+model CdekOrderRelated {
+  id          Int       @id @default(autoincrement()) // Локальный ID
+  orderId     Int                                     // FK на CdekOrder
+  order       CdekOrder @relation(fields: [orderId], references: [id], onDelete: Cascade)
+
+  uuid        String?   // UUID связанной сущности (return_order и т.п.)
+  type        String?   // Тип связанной сущности (например, 'return_order')
+  url         String?   // Ссылка на сущность в СДЭК (если есть)
+  createTime  DateTime? // Время создания связанной сущности
+  cdekNumber  String?   // Номер СДЭК связанной сущности (если применимо)
+  date        DateTime? // Дата (например, дата курьерского визита)
+  timeFrom    String?   // Временное окно «с» (строкой, как в ответе: "15:00")
+  timeTo      String?   // Временное окно «по» (строкой, как в ответе: "18:00")
+
+  createdAt   DateTime  @default(now()) // Дата записи в БД
+}
+
 
 // Модель для кэширования информации о пунктах выдачи
 model DeliveryPoint {
@@ -100,4 +228,197 @@ model DeliveryPoint {
   createdAt   DateTime @default(now()) @map("created_at")
 
   @@map("delivery_points")
+}
+
+/// Тип пункта выдачи/постамата СДЭК
+enum CdekOfficeType {
+  /// Пункт выдачи заказов (ПВЗ)
+  PVZ
+  /// Постамат
+  POSTAMAT
+  /// Неизвестный/не распознанный тип (значение по умолчанию)
+  UNKNOWN
+}
+
+/// Точка СДЭК: ПВЗ/Постамат/и т.п. Хранит «плоские» поля + сырой JSON ответа.
+model CdekDeliveryPoint {
+  /// Уникальный идентификатор точки (UUID из СДЭК)
+  uuid        String          @id
+  /// Внутренний код точки (например, "NSK1")
+  code        String
+  /// Код владельца точки (owner_code), если есть
+  ownerCode   String?
+  /// Тип офиса (PVZ/POSTAMAT/UNKNOWN)
+  type        CdekOfficeType? @default(UNKNOWN)
+
+  /// Код страны ISO_3166-1_alpha-2 (RU, KZ, ...)
+  countryCode String?
+  /// Код региона СДЭК
+  regionCode  Int?
+  /// Код города СДЭК (city_code)
+  cityCode    Int?
+  /// Название города
+  city        String?
+  /// Почтовый индекс
+  postalCode  String?
+
+  /// Географическая широта (WGS84)
+  latitude    Float?
+  /// Географическая долгота (WGS84)
+  longitude   Float?
+
+  /// Короткий адрес (без дополнительных описаний)
+  address     String?
+  /// Полный адрес (address_full)
+  addressFull String?
+
+  /// Минимальный вес (кг), который принимает офис
+  weightMin   Float?
+  /// Максимальный вес (кг), который принимает офис
+  weightMax   Float?
+
+  /// Только выдача (take_only=true) — без приёма
+  takeOnly               Boolean?
+  /// Является пунктом выдачи (is_handout)
+  isHandout              Boolean?
+  /// Есть приём заказов (is_reception)
+  isReception            Boolean?
+  /// Наличие примерочной (is_dressing_room)
+  isDressingRoom         Boolean?
+  /// Офис для доставки «До маркетплейса» (is_marketplace)
+  isMarketplace          Boolean?
+  /// Работа с LTL (сборные грузы)
+  isLtl                  Boolean?
+  /// Есть терминал безналичной оплаты
+  haveCashless           Boolean?
+  /// Принимают наличные
+  haveCash               Boolean?
+  /// Поддержка СБП (Система быстрых платежей)
+  haveFastPaymentSystem  Boolean?
+  /// Разрешён наложенный платеж (COD)
+  allowedCod             Boolean?
+  /// Фулфилмент-зона в офисе
+  fulfillment            Boolean?
+  /// Расстояние (метры/километры — как приходит в API), если возвращается
+  distance               Float?
+
+  /// Время последней успешной синхронизации, когда точка «замечена»
+  lastSeenAt  DateTime?
+  /// Время последнего обновления записи в БД (ставится автоматически)
+  updatedAt   DateTime      @updatedAt
+  /// «Мягкое удаление»: помечена, если точка исчезла из актуальной выдачи
+  deletedAt   DateTime?
+
+  /// Полный оригинальный ответ по точке (JSONB)
+  raw         Json
+
+  /// Телефоны офиса (нормализованные записи)
+  phones      CdekDPPhone[]
+  /// Изображения/фото офиса
+  images      CdekDPImage[]
+  /// График работы по дням
+  workTimes   CdekDPWorkTime[]
+  /// Исключения в графике (праздники/особые дни)
+  exceptions  CdekDPWorkTimeException[]
+  /// Ограничения по габаритам (Ш×В×Г)
+  dimensions  CdekDPDimension[]
+
+  @@index([cityCode])
+  @@index([type])
+  @@index([deletedAt])
+  @@index([latitude, longitude])
+  @@unique([code, ownerCode])
+}
+
+/// Телефон офиса СДЭК
+model CdekDPPhone {
+  /// Идентификатор записи телефона
+  id       String             @id @default(cuid())
+  /// Внешний ключ: UUID точки
+  dpUuid   String
+  /// Номер телефона
+  number   String
+  /// Доп. информация/доб. номер (additional)
+  addl     String?
+
+  /// Связь с точкой
+  dp       CdekDeliveryPoint  @relation(fields: [dpUuid], references: [uuid], onDelete: Cascade)
+
+  @@index([dpUuid])
+}
+
+/// Изображение офиса
+model CdekDPImage {
+  /// Идентификатор записи изображения
+  id       String             @id @default(cuid())
+  /// Внешний ключ: UUID точки
+  dpUuid   String
+  /// Порядковый номер изображения (как в API)
+  number   Int?
+  /// URL изображения
+  url      String
+
+  /// Связь с точкой
+  dp       CdekDeliveryPoint  @relation(fields: [dpUuid], references: [uuid], onDelete: Cascade)
+
+  @@index([dpUuid])
+}
+
+/// Стандартное рабочее время по дню недели
+model CdekDPWorkTime {
+  /// Идентификатор записи графика
+  id       String             @id @default(cuid())
+  /// Внешний ключ: UUID точки
+  dpUuid   String
+  /// Номер дня (1..7 или 0..6 — как приходит в API)
+  day      Int
+  /// Интервал времени в текстовом формате (например, "09:00-20:00")
+  time     String
+
+  /// Связь с точкой
+  dp       CdekDeliveryPoint  @relation(fields: [dpUuid], references: [uuid], onDelete: Cascade)
+
+  @@index([dpUuid])
+}
+
+/// Исключение из рабочего графика (праздники, сокращённые дни и т.п.)
+model CdekDPWorkTimeException {
+  /// Идентификатор записи исключения
+  id        String            @id @default(cuid())
+  /// Внешний ключ: UUID точки
+  dpUuid    String
+  /// Дата начала действия исключения (локальная дата из API)
+  dateStart DateTime
+  /// Дата окончания действия исключения (локальная дата из API)
+  dateEnd   DateTime
+  /// Время начала (если есть), строка "HH:mm"
+  timeStart String?
+  /// Время окончания (если есть), строка "HH:mm"
+  timeEnd   String?
+  /// Флаг «рабочий день» в этот период
+  isWorking Boolean
+
+  /// Связь с точкой
+  dp        CdekDeliveryPoint @relation(fields: [dpUuid], references: [uuid], onDelete: Cascade)
+
+  @@index([dpUuid])
+}
+
+/// Ограничения по габаритам отправления для офиса
+model CdekDPDimension {
+  /// Идентификатор записи габаритов
+  id       String             @id @default(cuid())
+  /// Внешний ключ: UUID точки
+  dpUuid   String
+  /// Ширина, мм
+  width    Int
+  /// Высота, мм
+  height   Int
+  /// Глубина, мм
+  depth    Int
+
+  /// Связь с точкой
+  dp       CdekDeliveryPoint  @relation(fields: [dpUuid], references: [uuid], onDelete: Cascade)
+
+  @@index([dpUuid])
 }

@@ -54,8 +54,8 @@ async function bootstrap() {
   );
 
   // Глобальный guard для авторизации
-  const jwtAuthGuard = app.get(JwtAuthGuard);
-  app.useGlobalGuards(jwtAuthGuard);
+  // const jwtAuthGuard = app.get(JwtAuthGuard);
+  // app.useGlobalGuards(jwtAuthGuard);
 
   // Устанавливаем глобальный префикс для всех API эндпоинтов
   app.setGlobalPrefix('api');

@@ -8,6 +8,8 @@ import {
   HttpException,
   HttpStatus,
   Logger,
+  ValidationPipe,
+  UsePipes,
 } from '@nestjs/common';
 import {
   ApiTags,
@@ -21,6 +23,10 @@ import { CdekService } from './cdek.service';
 import { CdekAuthDto } from './dto/auth.dto';
 import { GetOrderQueryDto, OrderInfoResponseDto } from './dto/order.dto';
 import { Public } from '../auth/decorators/public.decorator';
+import { CalcTariffListRequestDto, CalcTariffListResponseDto } from './dto/calculator.dto';
+import { SuggestCitiesQueryDto, RegionsQueryDto, PostalCodesQueryDto, GeolocationQueryDto, CitiesQueryDto } from './dto/location.dto';
+import { ListFromDbQueryDto, SyncDeliveryPointsQueryDto } from './dto/cdek.dto';
+import { CreateCdekOrderDto } from './dto/create-cdek-order.dto';
 
 @ApiTags('CDEK API')
 @Controller('cdek')
@@ -170,7 +176,7 @@ export class CdekController {
           HttpStatus.BAD_REQUEST,
         );
       }
-      console.log('1234')
+
       const orderInfo = await this.cdekService.getOrderInfo(query.cdek_number);
       
       return {
@@ -191,32 +197,28 @@ export class CdekController {
     }
   }
 
-  @ApiOperation({
-    summary: 'Создать новый заказ',
-    description: 'Создает новый заказ на доставку в системе CDEK',
+   @ApiOperation({
+    summary: 'Регистрация заказа в CDEK',
+    description:
+      'Создаёт заказ в CDEK (POST /v2/orders), сохраняет в БД структуру заказа, пакеты/товары, журнал requests и related_entities.',
   })
-  @ApiResponse({ status: 201, description: 'Заказ создан успешно' })
+  @ApiResponse({ status: 201, description: 'Заказ зарегистрирован и сохранён' })
   @ApiResponse({ status: 400, description: 'Неверные данные заказа' })
-  @ApiBearerAuth()
   @Post('orders')
-  async createOrder(@Body() orderData: any) {
+  async createOrder(@Body() dto: CreateCdekOrderDto) {
     try {
-      this.logger.log('Создание нового заказа CDEK');
-      const order = await this.cdekService.createOrder(orderData);
+      this.logger.log('Регистрация заказа в CDEK + сохранение в БД');
+      const result = await this.cdekService.registerOrder(dto);
       return {
         success: true,
-        data: order,
-        message: 'Заказ создан успешно',
+        data: result,
+        message: 'Заказ зарегистрирован, данные сохранены',
       };
-    } catch (error) {
-      this.logger.error('Ошибка при создании заказа:', error.message);
+    } catch (error: any) {
+      this.logger.error('Ошибка при регистрации заказа', error?.message, error?.stack);
       throw new HttpException(
-        {
-          success: false,
-          message: 'Не удалось создать заказ',
-          error: error.message,
-        },
-        error.status || HttpStatus.INTERNAL_SERVER_ERROR,
+        { success: false, message: 'Не удалось зарегистрировать заказ', error: error?.message },
+        error?.status || HttpStatus.INTERNAL_SERVER_ERROR,
       );
     }
   }
@@ -256,87 +258,106 @@ export class CdekController {
     }
   }
 
-  @ApiOperation({
-    summary: 'Получить список пунктов выдачи',
-    description: 'Получает список доступных пунктов выдачи с возможностью фильтрации',
-  })
-  @ApiQuery({
-    name: 'city_code',
-    required: false,
-    description: 'Код города для фильтрации',
-    example: 44,
-  })
-  @ApiQuery({
-    name: 'type',
-    required: false,
-    description: 'Тип пункта выдачи (PVZ, POSTAMAT)',
-    example: 'PVZ',
-  })
-  @ApiResponse({ status: 200, description: 'Список пунктов выдачи получен' })
-  @ApiBearerAuth()
-  @Get('delivery-points')
-  async getDeliveryPoints(
-    @Query('city_code') cityCode?: string,
-    @Query('type') type?: string,
-    @Query() otherParams?: any,
-  ) {
-    try {
-      this.logger.log('Запрос списка пунктов выдачи');
-      const params = {
-        ...(cityCode && { city_code: cityCode }),
-        ...(type && { type }),
-        ...otherParams,
-      };
+  
 
-      const points = await this.cdekService.getDeliveryPoints(params);
-      return {
-        success: true,
-        data: points,
-        message: 'Список пунктов выдачи получен',
-        count: Array.isArray(points) ? points.length : 0,
-      };
-    } catch (error) {
-      this.logger.error('Ошибка при получении пунктов выдачи:', error.message);
-      throw new HttpException(
-        {
-          success: false,
-          message: 'Не удалось получить пункты выдачи',
-          error: error.message,
-        },
-        error.status || HttpStatus.INTERNAL_SERVER_ERROR,
-      );
-    }
+@ApiOperation({
+  summary: 'Расчёт по доступным тарифам',
+  description: 'Стоимость и сроки по всем доступным тарифам (CDEK /v2/calculator/tarifflist)',
+})
+@ApiResponse({ status: 200, description: 'OK', type: CalcTariffListResponseDto })
+@ApiBearerAuth()
+@Post('calculator/tarifflist')
+@UsePipes(new ValidationPipe({ whitelist: true, transform: true }))
+async calcTariffList(@Body() body: CalcTariffListRequestDto): Promise<{
+  success: boolean; data: CalcTariffListResponseDto; message: string;
+}> {
+  try {
+    const data = await this.cdekService.calculateTariffList(body);
+    return { success: true, data, message: 'Расчёт выполнен' };
+  } catch (error) {
+    this.logger.error('Ошибка при расчёте тарифов:', error.message);
+    throw new HttpException(
+      { success: false, message: 'Не удалось выполнить расчёт тарифов', error: error.message },
+      error.status || HttpStatus.INTERNAL_SERVER_ERROR,
+    );
   }
+}
 
-  @ApiOperation({
-    summary: 'Рассчитать стоимость доставки',
-    description: 'Рассчитывает стоимость и сроки доставки для заданных параметров',
-  })
-  @ApiResponse({ status: 200, description: 'Расчет выполнен успешно' })
-  @ApiResponse({ status: 400, description: 'Неверные параметры для расчета' })
-  @ApiBearerAuth()
-  @Post('calculate')
-  async calculateDelivery(@Body() calculationData: any) {
-    try {
-      this.logger.log('Расчет стоимости доставки');
-      const calculation = await this.cdekService.calculateDelivery(calculationData);
-      return {
-        success: true,
-        data: calculation,
-        message: 'Расчет выполнен успешно',
-      };
-    } catch (error) {
-      this.logger.error('Ошибка при расчете доставки:', error.message);
-      throw new HttpException(
-        {
-          success: false,
-          message: 'Не удалось выполнить расчет доставки',
-          error: error.message,
-        },
-        error.status || HttpStatus.INTERNAL_SERVER_ERROR,
-      );
-    }
+@ApiOperation({ summary: 'Подбор города по названию' })
+@ApiBearerAuth()
+@Get('location/suggest/cities')
+@UsePipes(new ValidationPipe({ transform: true, whitelist: true }))
+async suggestCities(@Query() query: SuggestCitiesQueryDto) {
+  try {
+    this.logger.log(`Подбор города: ${query.name}`);
+    const data = await this.cdekService.suggestCities(query);
+    return { success: true, data, message: 'Подбор выполнен', count: Array.isArray(data) ? data.length : 0 };
+  } catch (error) {
+    this.logger.error('Ошибка подбора города:', error.message);
+    throw new HttpException({ success: false, message: 'Не удалось выполнить подбор', error: error.message },
+      error.status || HttpStatus.INTERNAL_SERVER_ERROR);
   }
+}
+
+@ApiOperation({ summary: 'Список регионов' })
+@ApiBearerAuth()
+@Get('location/regions')
+@UsePipes(new ValidationPipe({ transform: true, whitelist: true }))
+async getRegions(@Query() query: RegionsQueryDto) {
+  try {
+    const data = await this.cdekService.getRegions(query);
+    return { success: true, data, message: 'Список регионов получен' };
+  } catch (error) {
+    this.logger.error('Ошибка получения регионов:', error.message);
+    throw new HttpException({ success: false, message: 'Не удалось получить регионы', error: error.message },
+      error.status || HttpStatus.INTERNAL_SERVER_ERROR);
+  }
+}
+
+@ApiOperation({ summary: 'Почтовые индексы города' })
+@ApiBearerAuth()
+@Get('location/postalcodes')
+@UsePipes(new ValidationPipe({ transform: true, whitelist: true }))
+async getPostalCodes(@Query() query: PostalCodesQueryDto) {
+  try {
+    const data = await this.cdekService.getPostalCodesByCity(query.city_code);
+    return { success: true, data, message: 'Индексы получены' };
+  } catch (error) {
+    this.logger.error('Ошибка получения индексов:', error.message);
+    throw new HttpException({ success: false, message: 'Не удалось получить индексы', error: error.message },
+      error.status || HttpStatus.INTERNAL_SERVER_ERROR);
+  }
+}
+
+@ApiOperation({ summary: 'Локация по координатам' })
+@ApiBearerAuth()
+@Get('location/geolocation')
+@UsePipes(new ValidationPipe({ transform: true, whitelist: true }))
+async geolocation(@Query() query: GeolocationQueryDto) {
+  try {
+    const data = await this.cdekService.getLocationByCoordinates(query.latitude, query.longitude);
+    return { success: true, data, message: 'Локация определена' };
+  } catch (error) {
+    this.logger.error('Ошибка геолокации:', error.message);
+    throw new HttpException({ success: false, message: 'Не удалось определить локацию', error: error.message },
+      error.status || HttpStatus.INTERNAL_SERVER_ERROR);
+  }
+}
+
+@ApiOperation({ summary: 'Список населённых пунктов' })
+@ApiBearerAuth()
+@Get('location/cities')
+@UsePipes(new ValidationPipe({ transform: true, whitelist: true }))
+async getCities(@Query() query: CitiesQueryDto) {
+  try {
+    const data = await this.cdekService.getCities(query);
+    return { success: true, data, message: 'Список городов получен' };
+  } catch (error) {
+    this.logger.error('Ошибка получения городов:', error.message);
+    throw new HttpException({ success: false, message: 'Не удалось получить города', error: error.message },
+      error.status || HttpStatus.INTERNAL_SERVER_ERROR);
+  }
+}
 
   @ApiOperation({
     summary: 'Статус сервиса CDEK',
@@ -378,4 +399,45 @@ export class CdekController {
       };
     }
   }
+
+@ApiOperation({ summary: 'Синхронизация ПВЗ в БД' })
+@ApiBearerAuth()
+@Get('delivery-points/sync')
+async syncDeliveryPoints(@Query() query: SyncDeliveryPointsQueryDto) {
+  try {
+    const result = await this.cdekService.syncDeliveryPoints(query);
+    return { success: true, ...result };
+  } catch (e:any) {
+    throw new HttpException({ success: false, message: e.message }, HttpStatus.INTERNAL_SERVER_ERROR);
+  }
+}
+
+@ApiOperation({ summary: 'ПВЗ из БД (фильтры, bbox, строковый поиск)' })
+@ApiBearerAuth()
+@Get('delivery-points/db')
+async getFromDb(@Query() q: ListFromDbQueryDto) {
+  try {
+    // режим радиуса при наличии center_* и radius_km
+    if (q.center_lat != null && q.center_lon != null && q.radius_km != null) {
+      const usePostGIS = process.env.USE_POSTGIS === 'true';
+      const limit = q.limit ?? 100, offset = q.offset ?? 0;
+      return usePostGIS
+        ? await this.cdekService.listWithinRadiusPostGIS(q.center_lat, q.center_lon, q.radius_km, limit, offset)
+        : await this.cdekService.listWithinRadiusHaversine(q.center_lat, q.center_lon, q.radius_km, limit, offset);
+    }
+
+    // обычный список/поиск/bbox
+    return await this.cdekService.listFromDb({
+      type: q.type, city_code: q.city_code, q: q.q,
+      lat_min: q.lat_min, lat_max: q.lat_max, lon_min: q.lon_min, lon_max: q.lon_max,
+      limit: q.limit, offset: q.offset,
+    });
+  } catch (e:any) {
+    throw new HttpException({ success: false, message: e.message }, HttpStatus.INTERNAL_SERVER_ERROR);
+  }
+
+  
+}
+
+
 }
