@@ -2,24 +2,31 @@
   <header class="topbar">
     <div class="topbar__inner">
       <a class="brand" href="/">
-        <span class="brand__text">BEGUN</span><span class="brand__ok">OK</span
-        ><span class="brand__text">.PRO</span>
+        <span class="brand__text">BEGUN</span><span class="brand__text">OK</span><span class="brand__ok">.PRO</span>
       </a>
 
       <nav class="menu">
-        <a href="#about" :class="{ active: activeHash === '#about' }">О нас</a>
-        <a href="#contacts" :class="{ active: activeHash === '#contacts' }">Контакты</a>
-        <a href="#offer" :class="{ active: activeHash === '#offer' }">Оферта</a>
+        <a href="#about" :class="{ active: activeHash === '#individuals' }">Частным лицам</a>
+        <a href="#contacts" :class="{ active: activeHash === '#catalog' }">Каталог</a>
       </nav>
     </div>
-    <div class="promo">
+    <!-- <div class="promo">
       <div>
         <button class="promo__btn">Подробнее</button>
         <p class="promo__text">Приведи друга и получи бонус</p>
       </div>
+    </div> -->
+
+    <div class="btn__container">
+      <button type="button" class="login-btn" @click="goLogin">Войти/Регистрация</button>
+      <button class="icon-btn" type="button" @click="" title="Скачать CSV">
+        <svg viewBox="0 0 24 24" aria-hidden="true">
+          <path :d="mdiCartOutline" />
+        </svg>
+      </button>
     </div>
   </header>
-  <div class="packages">
+  <!-- <div class="packages">
     <nav class="actions actions--bar">
       <button type="button" class="btn btn--first">Список отправлений</button>
       <button type="button" class="btn btn--second">Создать заказ</button>
@@ -32,19 +39,22 @@
     <button type="button" class="btn--icon" aria-label="Настройки">
       <span aria-hidden="true">⚙</span>
     </button>
-  </div>
+  </div> -->
 </template>
 
 <script setup lang="ts">
 import { ref, onMounted, onBeforeUnmount } from 'vue'
+import { mdiCartOutline } from '@mdi/js'
+import { useRouter } from 'vue-router'
 
 // track current hash for active menu highlighting
 const activeHash = ref<string>('')
 
 const syncActive = () => {
-  activeHash.value = window.location.hash || '#about'
+  activeHash.value = window.location.hash || '#individuals'
 }
-
+const router = useRouter()
+const goLogin = () => router.push('/login')
 onMounted(() => {
   syncActive()
   window.addEventListener('hashchange', syncActive)
@@ -56,38 +66,10 @@ onBeforeUnmount(() => {
 </script>
 
 <style scoped>
-@font-face {
-  font-family: 'Source Sans Pro ';
-  src: url('/fonts/SourceSansPro-Bold.woff2') format('woff2');
-  font-weight: 700;
-  font-style: normal;
-  font-display: swap;
-}
-
-@font-face {
-  font-family: 'Source Sans Pro';
-  src: url('/fonts/SourceSansPro-Black.woff2') format('woff2');
-  font-weight: 900;
-  font-style: normal;
-  font-display: swap;
-}
-
-:global(:root) {
-  --h: 56px;
-  --bg: #c9e0cb;
-  --border: #cfe4c9;
-  --brand: #0b0b0b;
-  --ok: #16a34a;
-  --link: #2a2f36;
-  --btn: #3b82f6;
-  --brandWhite: #ffffff;
-  --active: #f4bc52;
-}
-
 /* Шапка на всю ширину, фиксированная высота */
 .topbar {
   height: var(--h);
-  background: var(--bg);
+  background: #fff;
   border-bottom: 1px solid var(--border);
   display: flex;
   justify-content: space-between;
@@ -97,47 +79,98 @@ onBeforeUnmount(() => {
 .topbar__inner {
   height: var(--h);
   max-width: 1440px;
-  padding: 0 16px;
+  padding: 0 45px;
   display: grid;
-  grid-template-columns: auto 1fr; /* was: auto 1fr minmax(480px, 600px) */
+  grid-template-columns: auto 1fr;
+  /* was: auto 1fr minmax(480px, 600px) */
   align-items: center;
-  column-gap: 24px;
+  column-gap: 67px;
+}
+
+.login-btn {
+  border: 1px solid #a3b18a;
+  border-radius: 5px;
+  width: 184px;
+  height: 39px;
+  align-self: center;
+  color: black;
+  font-size: 16px;
+}
+
+.btn__container {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  padding-right: 77px;
+}
+
+.icon-btn {
+  width: 40px;
+  height: 40px;
+  border-radius: 8px;
+  border: none;
+  background: transparent;
+  cursor: pointer;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  color: #6b7280;
+}
+
+.icon-btn:hover {
+  filter: brightness(0.98);
+}
+
+.icon-btn svg {
+  width: 32px;
+  height: 32px;
+  fill: black;
 }
 
 .brand {
-  color: var(--brandWhite);
+  color: var(--brand);
   text-decoration: none;
   white-space: nowrap;
-  font-size: 28px;
+  font-size: 40px;
   letter-spacing: 0.4px;
   line-height: 1;
   font-family: 'Source Sans Pro', sans-serif;
+  -webkit-text-stroke: 0.5px var(--ok);
+  text-shadow:
+    -0.5px -0.5px 0 var(--ok),
+    0.5px -0.5px 0 var(--ok),
+    -0.5px 0.5px 0 var(--ok),
+    0.5px 0.5px 0 var(--ok);
 }
+
 .brand__text {
-  font-weight: 900;
+  font-weight: normal;
 }
 
 .brand__ok {
-  color: var(--brand);
-  font-weight: 900;
+  color: var(--ok);
+  font-weight: normal;
 }
 
 .menu {
   display: flex;
-  gap: 24px;
+  gap: 44px;
   align-items: center;
 }
+
 .menu a {
   color: var(--link);
   text-decoration: none;
   font-weight: 500;
-  font-size: 15px;
+  font-size: 18px;
 }
+
 .menu a:hover {
   opacity: 0.75;
 }
+
 .menu a.active {
-  color: var(--active);
+  color: var(--ok);
   font-weight: 700;
 }
 
@@ -145,7 +178,8 @@ onBeforeUnmount(() => {
 .actions--bar {
   max-width: 1440px;
   padding: 11px 0 11px 16px;
-  justify-content: flex-end; /* complements .actions flex */
+  justify-content: flex-end;
+  /* complements .actions flex */
 }
 
 .packages {
@@ -176,6 +210,7 @@ onBeforeUnmount(() => {
   line-height: 1;
   cursor: pointer;
 }
+
 .btn:hover {
   filter: brightness(0.98);
 }
@@ -228,7 +263,8 @@ onBeforeUnmount(() => {
   position: relative;
   height: 57px;
   width: 533px;
-  background: url('../assets/images/promo.jpg') left center / cover no-repeat; /* помести файл в /public/images/promo.jpg */
+  background: url('../assets/images/promo.jpg') left center / cover no-repeat;
+  /* помести файл в /public/images/promo.jpg */
 }
 
 .promo__text {
@@ -260,6 +296,7 @@ onBeforeUnmount(() => {
   cursor: pointer;
   box-shadow: 0 8px 6px rgba(0, 0, 0, 0.1);
 }
+
 .promo__btn:hover {
   filter: brightness(0.96);
 }
@@ -269,14 +306,18 @@ onBeforeUnmount(() => {
   .brand {
     font-size: 24px;
   }
+
   .topbar__inner {
-    grid-template-columns: auto 1fr; /* was: auto 1fr 420px */
+    grid-template-columns: auto 1fr;
+    /* was: auto 1fr 420px */
   }
 }
+
 @media (max-width: 820px) {
   .menu {
     display: none;
   }
+
   .topbar__inner {
     grid-template-columns: auto 1fr;
   }

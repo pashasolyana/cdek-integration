@@ -185,7 +185,7 @@ export class CdekController {
         message: 'Информация о заказе получена успешно',
       };
     } catch (error) {
-      this.logger.error(`Ошибка при получении информации о заказе:`, error);
+    //  this.logger.error(`Ошибка при получении информации о заказе:`, error);
       throw new HttpException(
         {
           success: false,

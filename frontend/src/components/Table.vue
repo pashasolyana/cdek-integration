@@ -10,17 +10,27 @@
                 <span></span>
               </label>
             </th>
-            <th v-for="col in visibleColumns" :key="col.key"
+            <th
+              v-for="col in visibleColumns"
+              :key="col.key"
               :class="['th', 'col-' + col.key, col.align ? 'align-' + col.align : '']"
-              :style="col.width ? { width: col.width + 'px' } : null" @click="col.sortable && changeSort(col.key)">
+              :style="col.width ? { width: col.width + 'px' } : null"
+              @click="col.sortable && changeSort(col.key)"
+            >
               <div class="th-inner" :class="{ clickable: col.sortable }">
                 <span class="label">{{ col.label }}</span>
                 <span v-if="col.sortable" class="sort">
                   <i class="asc" :class="{ active: sort.key === col.key && sort.dir === 'asc' }" />
-                  <i class="desc" :class="{ active: sort.key === col.key && sort.dir === 'desc' }" />
+                  <i
+                    class="desc"
+                    :class="{ active: sort.key === col.key && sort.dir === 'desc' }"
+                  />
                 </span>
-                <button class="filter-btn" :class="{ active: isFiltered(col.key) }"
-                  @click.stop="openFilter(col.key, $event)">
+                <button
+                  class="filter-btn"
+                  :class="{ active: isFiltered(col.key) }"
+                  @click.stop="openFilter(col.key, $event)"
+                >
                   <svg viewBox="0 0 24 24" class="funnel" aria-hidden="true">
                     <path d="M3 5h18l-7.5 8v4.5L9 19v-6L3 5z" />
                   </svg>
@@ -33,13 +43,20 @@
           <tr v-for="(row, i) in pagedRows" :key="row.id ?? i">
             <td class="col-check">
               <label class="checkbox">
-                <input type="checkbox" :checked="selectedIds.has(row.id ?? i)" @change="toggleRow(row, i)" />
+                <input
+                  type="checkbox"
+                  :checked="selectedIds.has(row.id ?? i)"
+                  @change="toggleRow(row, i)"
+                />
                 <span></span>
               </label>
             </td>
-            <td v-for="col in visibleColumns" :key="col.key + '-' + (row.id ?? i)"
+            <td
+              v-for="col in visibleColumns"
+              :key="col.key + '-' + (row.id ?? i)"
               :class="['td', 'col-' + col.key, col.align ? 'align-' + col.align : '']"
-              :style="col.width ? { width: col.width + 'px' } : null">
+              :style="col.width ? { width: col.width + 'px' } : null"
+            >
               <template v-if="cellFormat(col) === 'link'">
                 <a href="#" class="link">{{ row[col.key] }}</a>
               </template>
@@ -51,8 +68,11 @@
                 <span class="status-text">{{ row[col.key] }}</span>
               </template>
               <template v-else>
-                <span :title="col.ellipsis ? row[col.key] : null" :class="{ ellipsis: col.ellipsis }">{{ row[col.key]
-                  }}</span>
+                <span
+                  :title="col.ellipsis ? row[col.key] : null"
+                  :class="{ ellipsis: col.ellipsis }"
+                  >{{ row[col.key] }}</span
+                >
               </template>
             </td>
           </tr>
@@ -70,15 +90,23 @@
       </div>
       <div class="filter-select-all">
         <label class="checkbox">
-          <input type="checkbox" :checked="isAllOptionsChecked" @change="toggleSelectAllOptions($event)" />
+          <input
+            type="checkbox"
+            :checked="isAllOptionsChecked"
+            @change="toggleSelectAllOptions($event)"
+          />
           <span></span>
         </label>
         <span class="sel-all-label">Выделить все</span>
       </div>
       <div class="filter-list">
         <label v-for="opt in filteredOptions" :key="opt.token" class="option">
-          <input type="checkbox" :value="opt.token" :checked="filter.tempSelected.has(opt.token)"
-            @change="onTempToggle(opt.token, $event)" />
+          <input
+            type="checkbox"
+            :value="opt.token"
+            :checked="filter.tempSelected.has(opt.token)"
+            @change="onTempToggle(opt.token, $event)"
+          />
           <span class="opt-label">{{ opt.display }}</span>
         </label>
       </div>
@@ -357,7 +385,6 @@ function statusClass(s) {
   flex: 1;
   text-align: center;
 }
-
 .shipments-table {
   font-family:
     Inter,
@@ -370,7 +397,6 @@ function statusClass(s) {
   color: #222;
   position: relative;
 }
-
 .table-wrap {
   overflow: auto;
   border: 1px solid #e6e8eb;
@@ -378,7 +404,6 @@ function statusClass(s) {
   border-radius: 4px 4px 0 0;
   background: #fff;
 }
-
 .grid {
   width: 100%;
   border-collapse: separate;
@@ -397,7 +422,6 @@ thead th {
   height: 32px;
   padding: 0;
 }
-
 .th-inner {
   display: flex;
   align-items: center;
@@ -406,7 +430,7 @@ thead th {
   height: 32px;
   white-space: nowrap;
 
-  span {
+    span {
     font-weight: bold;
   }
 }
@@ -419,7 +443,6 @@ thead th {
   width: 36px;
   text-align: center;
 }
-
 .align-right {
   text-align: right;
 }
@@ -429,7 +452,6 @@ thead th {
   flex-direction: column;
   gap: 2px;
 }
-
 .sort i {
   width: 0;
   height: 0;
@@ -437,16 +459,13 @@ thead th {
   border-right: 4px solid transparent;
   opacity: 0.35;
 }
-
 .sort .asc {
   border-bottom: 5px solid #6b7785;
   margin-top: -1px;
 }
-
 .sort .desc {
   border-top: 5px solid #6b7785;
 }
-
 .sort i.active {
   opacity: 1;
   border-bottom-color: #2f343a;
@@ -460,11 +479,9 @@ tbody td {
   vertical-align: middle;
   color: #2f343a;
 }
-
 tbody tr:hover td {
   background: #f7f9fb;
 }
-
 .ellipsis {
   max-width: 520px;
   overflow: hidden;
@@ -477,7 +494,6 @@ tbody tr:hover td {
   color: #1976d2;
   text-decoration: none;
 }
-
 .link:hover {
   text-decoration: underline;
 }
@@ -490,7 +506,6 @@ tbody tr:hover td {
   width: 14px;
   height: 14px;
 }
-
 .checkbox input {
   position: absolute;
   opacity: 0;
@@ -498,7 +513,6 @@ tbody tr:hover td {
   height: 14px;
   margin: 0;
 }
-
 .checkbox span {
   width: 14px;
   height: 14px;
@@ -507,14 +521,12 @@ tbody tr:hover td {
   background: #fff;
   box-shadow: inset 0 0 0 2px #fff;
 }
-
-.checkbox input:checked+span {
+.checkbox input:checked + span {
   background: #1a73e8;
   border-color: #1a73e8;
   box-shadow: inset 0 0 0 2px #1a73e8;
 }
-
-.checkbox input:checked+span:after {
+.checkbox input:checked + span:after {
   content: '';
   display: block;
   line-height: 14px;
@@ -549,7 +561,6 @@ tbody tr:hover td {
   font-size: 12px;
   color: #5b6774;
 }
-
 .icon-btn {
   border: 1px solid transparent;
   background: #fff;
@@ -558,7 +569,6 @@ tbody tr:hover td {
   font-size: 14px;
   cursor: pointer;
 }
-
 .icon-btn:hover {
   background: #f3f4f6;
 }
@@ -579,18 +589,15 @@ tbody tr:nth-child(even) td {
   background: transparent;
   cursor: pointer;
 }
-
 .filter-btn:hover {
   background: #eef2f5;
 }
-
 .funnel {
   width: 12px;
   height: 12px;
   fill: #6b7785;
   opacity: 0.55;
 }
-
 .filter-btn.active .funnel {
   fill: #1976d2;
   opacity: 1;
@@ -606,12 +613,10 @@ tbody tr:nth-child(even) td {
   box-shadow: 0 8px 24px rgba(0, 0, 0, 0.08);
   overflow: hidden;
 }
-
 .filter-head {
   padding: 8px;
   border-bottom: 1px solid #f0f1f2;
 }
-
 .filter-search {
   width: 100%;
   height: 28px;
@@ -621,12 +626,10 @@ tbody tr:nth-child(even) td {
   border-radius: 4px;
   outline: none;
 }
-
 .filter-search:focus {
   border-color: #9eb9ff;
   box-shadow: 0 0 0 3px rgba(158, 185, 255, 0.35);
 }
-
 .filter-select-all {
   display: flex;
   align-items: center;
@@ -636,11 +639,9 @@ tbody tr:nth-child(even) td {
   font-size: 12px;
   color: #2f343a;
 }
-
 .sel-all-label {
   user-select: none;
 }
-
 .filter-list {
   max-height: 220px;
   overflow: auto;
@@ -648,7 +649,6 @@ tbody tr:nth-child(even) td {
   display: grid;
   gap: 6px;
 }
-
 .option {
   display: grid;
   grid-auto-flow: column;
@@ -658,18 +658,15 @@ tbody tr:nth-child(even) td {
   font-size: 12px;
   color: #2f343a;
 }
-
 .option input[type='checkbox'] {
   width: 14px;
   height: 14px;
 }
-
 .opt-label {
   overflow: hidden;
   text-overflow: ellipsis;
   white-space: nowrap;
 }
-
 .filter-actions {
   display: flex;
   align-items: center;
@@ -677,11 +674,9 @@ tbody tr:nth-child(even) td {
   padding: 8px;
   border-top: 1px solid #f0f1f2;
 }
-
 .filter-actions .spacer {
   flex: 1;
 }
-
 .btn {
   padding: 6px 10px;
   font-size: 12px;
@@ -690,11 +685,9 @@ tbody tr:nth-child(even) td {
   background: #fff;
   cursor: pointer;
 }
-
 .btn:hover {
   background: #f6f7f9;
 }
-
 .btn.ghost {
   color: #6b7785;
 }
