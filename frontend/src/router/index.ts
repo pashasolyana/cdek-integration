@@ -18,13 +18,13 @@ const router = createRouter({
       path: '/login',
       name: 'login',
       component: LoginView,
-      meta: { guest: true, hideHeader: true },
+      meta: { guest: true },
     },
     {
       path: '/r',
       name: 'register',
       component: RegisterView,
-      meta: { guest: true, hideHeader: true },
+      meta: { guest: true },
     },
     {
       path: '/404',

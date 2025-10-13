@@ -15,13 +15,13 @@
 }
 
 :root {
-  --h: 56px;
+  --h: 82px;
   --bg: #c9e0cb;
   --border: #cfe4c9;
   --brand: #0b0b0b;
-  --ok: #16a34a;
+  --ok: #344e41;
   --link: #2a2f36;
   --btn: #3b82f6;
   --brandWhite: #ffffff;
-  --active: #f4bc52;
+  --active: #3a3224;
 }
