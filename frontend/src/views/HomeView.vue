@@ -1,7 +1,7 @@
 <script setup lang="ts">
 import Table from '../components/Table.vue'
 import { onMounted, ref, computed } from 'vue'
-import { mdiTrayArrowDown } from '@mdi/js'
+
 
 const columns = [
   { key: 'date', label: 'Дата', width: 96, sortable: true },
@@ -437,18 +437,10 @@ onMounted(() => {
         </div>
       </div>
 
-      <button class="icon-btn" type="button" @click="exportCsv" title="Скачать CSV">
-        <svg viewBox="0 0 24 24" aria-hidden="true">
-          <path :d="mdiTrayArrowDown" />
-        </svg>
-      </button>
+
     </div>
 
-    <Table
-      :columns="columns"
-      :rows="filteredRows"
-      @update:selection="(ids: any) => console.log(ids)"
-    ></Table>
+    <Table :columns="columns" :rows="filteredRows" @update:selection="(ids: any) => console.log(ids)"></Table>
   </div>
   <div></div>
 </template>
@@ -501,6 +493,7 @@ h1 {
   justify-content: center;
   gap: 12px;
 }
+
 .filters__left {
   display: flex;
   align-items: center;
@@ -532,6 +525,7 @@ h1 {
   position: relative;
   min-width: 180px;
 }
+
 .f-select:focus {
   outline: none;
   border-color: #d1d5db;
@@ -547,6 +541,7 @@ h1 {
   padding: 6px 10px;
   position: relative;
 }
+
 .f-date {
   border: 0;
   padding: 2px;
@@ -554,13 +549,16 @@ h1 {
   color: #2a2f36;
   background: transparent;
 }
+
 .f-date:focus {
   outline: none;
 }
+
 .f-arrow {
   color: #9ca3af;
   font-size: 14px;
 }
+
 .f-cal {
   color: #9ca3af;
   margin-left: 6px;
@@ -578,9 +576,11 @@ h1 {
   justify-content: center;
   color: #6b7280;
 }
+
 .icon-btn:hover {
   filter: brightness(0.98);
 }
+
 .icon-btn svg {
   width: 18px;
   height: 18px;
