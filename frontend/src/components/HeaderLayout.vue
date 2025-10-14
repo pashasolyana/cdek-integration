@@ -2,8 +2,7 @@
   <header class="topbar">
     <div class="topbar__inner">
       <a class="brand" href="/">
-        <span class="brand__text">BEGUN</span><span class="brand__text">OK</span
-        ><span class="brand__ok">.PRO</span>
+        <span class="brand__text">BEGUN</span><span class="brand__text">OK</span><span class="brand__ok">.PRO</span>
       </a>
 
       <nav class="menu">
@@ -19,7 +18,7 @@
     </div> -->
 
     <div class="btn__container">
-      <button class="login-btn">Войти/Регистрация</button>
+      <button type="button" class="login-btn" @click="goLogin">Войти/Регистрация</button>
       <button class="icon-btn" type="button" @click="" title="Скачать CSV">
         <svg viewBox="0 0 24 24" aria-hidden="true">
           <path :d="mdiCartOutline" />
@@ -46,6 +45,7 @@
 <script setup lang="ts">
 import { ref, onMounted, onBeforeUnmount } from 'vue'
 import { mdiCartOutline } from '@mdi/js'
+import { useRouter } from 'vue-router'
 
 // track current hash for active menu highlighting
 const activeHash = ref<string>('')
@@ -53,7 +53,8 @@ const activeHash = ref<string>('')
 const syncActive = () => {
   activeHash.value = window.location.hash || '#individuals'
 }
-
+const router = useRouter()
+const goLogin = () => router.push('/login')
 onMounted(() => {
   syncActive()
   window.addEventListener('hashchange', syncActive)
@@ -80,7 +81,8 @@ onBeforeUnmount(() => {
   max-width: 1440px;
   padding: 0 45px;
   display: grid;
-  grid-template-columns: auto 1fr; /* was: auto 1fr minmax(480px, 600px) */
+  grid-template-columns: auto 1fr;
+  /* was: auto 1fr minmax(480px, 600px) */
   align-items: center;
   column-gap: 67px;
 }
@@ -114,9 +116,11 @@ onBeforeUnmount(() => {
   justify-content: center;
   color: #6b7280;
 }
+
 .icon-btn:hover {
   filter: brightness(0.98);
 }
+
 .icon-btn svg {
   width: 32px;
   height: 32px;
@@ -138,6 +142,7 @@ onBeforeUnmount(() => {
     -0.5px 0.5px 0 var(--ok),
     0.5px 0.5px 0 var(--ok);
 }
+
 .brand__text {
   font-weight: normal;
 }
@@ -152,15 +157,18 @@ onBeforeUnmount(() => {
   gap: 44px;
   align-items: center;
 }
+
 .menu a {
   color: var(--link);
   text-decoration: none;
   font-weight: 500;
   font-size: 18px;
 }
+
 .menu a:hover {
   opacity: 0.75;
 }
+
 .menu a.active {
   color: var(--ok);
   font-weight: 700;
@@ -170,7 +178,8 @@ onBeforeUnmount(() => {
 .actions--bar {
   max-width: 1440px;
   padding: 11px 0 11px 16px;
-  justify-content: flex-end; /* complements .actions flex */
+  justify-content: flex-end;
+  /* complements .actions flex */
 }
 
 .packages {
@@ -201,6 +210,7 @@ onBeforeUnmount(() => {
   line-height: 1;
   cursor: pointer;
 }
+
 .btn:hover {
   filter: brightness(0.98);
 }
@@ -253,7 +263,8 @@ onBeforeUnmount(() => {
   position: relative;
   height: 57px;
   width: 533px;
-  background: url('../assets/images/promo.jpg') left center / cover no-repeat; /* помести файл в /public/images/promo.jpg */
+  background: url('../assets/images/promo.jpg') left center / cover no-repeat;
+  /* помести файл в /public/images/promo.jpg */
 }
 
 .promo__text {
@@ -285,6 +296,7 @@ onBeforeUnmount(() => {
   cursor: pointer;
   box-shadow: 0 8px 6px rgba(0, 0, 0, 0.1);
 }
+
 .promo__btn:hover {
   filter: brightness(0.96);
 }
@@ -294,14 +306,18 @@ onBeforeUnmount(() => {
   .brand {
     font-size: 24px;
   }
+
   .topbar__inner {
-    grid-template-columns: auto 1fr; /* was: auto 1fr 420px */
+    grid-template-columns: auto 1fr;
+    /* was: auto 1fr 420px */
   }
 }
+
 @media (max-width: 820px) {
   .menu {
     display: none;
   }
+
   .topbar__inner {
     grid-template-columns: auto 1fr;
   }

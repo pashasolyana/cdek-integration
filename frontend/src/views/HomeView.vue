@@ -2,7 +2,10 @@
 import Table from '../components/Table.vue'
 import { onMounted, ref, computed } from 'vue'
 import { mdiTrayArrowDown } from '@mdi/js'
+import { useRouter } from 'vue-router'
 
+const router = useRouter()
+const goToTrack = () => router.push('/track')
 const columns = [
   { key: 'date', label: 'Дата', width: 96, sortable: true },
   { key: 'carrier', label: 'ТК', width: 180, sortable: true },
@@ -416,9 +419,11 @@ onMounted(() => {
   <div class="container">
     <div class="container--header">
       <p class="header-title">Список заказов</p>
-      <p class="balance">
-        Баланс <span class="balance--green">{{ balance }} ₽</span>
-      </p>
+      <div class="header-actions">
+        <button class="track-btn" type="button" @click="goToTrack">
+          Отслеживание заказа
+        </button>
+      </div>
     </div>
 
     <!-- filters bar -->
@@ -444,11 +449,7 @@ onMounted(() => {
       </button>
     </div>
 
-    <Table
-      :columns="columns"
-      :rows="filteredRows"
-      @update:selection="(ids: any) => console.log(ids)"
-    ></Table>
+    <Table :columns="columns" :rows="filteredRows" @update:selection="(ids: any) => console.log(ids)"></Table>
   </div>
   <div></div>
 </template>
@@ -488,6 +489,45 @@ h1 {
   color: #9b9b9b;
 }
 
+.header-actions {
+  display: flex;
+  gap: 8px;
+}
+
+.track-btn {
+  height: 36px;
+  padding: 0 14px;
+  border-radius: 10px;
+  background: #1f402e;
+  color: #fff;
+  border: 1px solid #1f402e;
+  font-size: 14px;
+  font-weight: 600;
+  cursor: pointer;
+  transition: transform .2s, box-shadow .2s, background .2s, border-color .2s;
+}
+
+.track-btn:hover {
+  transform: translateY(-1px);
+  background: #183323;
+  border-color: #183323;
+}
+
+/* дальше ваши стили как были */
+.filters {
+  margin: 8px 0 20px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 12px;
+}
+
+.filters__left {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+}
+
 .container--header {
   display: flex;
   justify-content: space-between;
@@ -501,6 +541,7 @@ h1 {
   justify-content: center;
   gap: 12px;
 }
+
 .filters__left {
   display: flex;
   align-items: center;
@@ -532,6 +573,7 @@ h1 {
   position: relative;
   min-width: 180px;
 }
+
 .f-select:focus {
   outline: none;
   border-color: #d1d5db;
@@ -547,6 +589,7 @@ h1 {
   padding: 6px 10px;
   position: relative;
 }
+
 .f-date {
   border: 0;
   padding: 2px;
@@ -554,13 +597,16 @@ h1 {
   color: #2a2f36;
   background: transparent;
 }
+
 .f-date:focus {
   outline: none;
 }
+
 .f-arrow {
   color: #9ca3af;
   font-size: 14px;
 }
+
 .f-cal {
   color: #9ca3af;
   margin-left: 6px;
@@ -578,9 +624,11 @@ h1 {
   justify-content: center;
   color: #6b7280;
 }
+
 .icon-btn:hover {
   filter: brightness(0.98);
 }
+
 .icon-btn svg {
   width: 18px;
   height: 18px;

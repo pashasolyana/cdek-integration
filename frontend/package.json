@@ -16,6 +16,7 @@
     "format": "prettier --write src/"
   },
   "dependencies": {
+    "@mdi/js": "^7.4.47",
     "@mdi/font": "^7.4.47",
     "axios": "^1.12.1",
     "js-cookie": "^3.0.5",

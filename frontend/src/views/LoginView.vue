@@ -1,448 +1,351 @@
 <template>
   <div class="login-page">
-    <!-- Верхняя зеленая секция -->
-    <div class="top-section">
-      <!-- Логотип -->
-      <div class="logo-wrapper">
-        <h1 class="logo">BEGUN<span class="logo-accent">OK</span>.PRO</h1>
-      </div>
+    <div class="login-modal">
+      <div class="login-container">
+        <header class="login-header">
+          <h2 class="login-title">Авторизация</h2>
+          <p class="login-subtitle">
+            Авторизуйтесь и создавайте <br />
+            заказы как компания
+          </p>
+        </header>
 
-      <div class="login-header">
-        <p>Регистрирация</p>
-        <p>Зарегистрируйтесь, чтобы</p>
-        <p>зарабатывать на доставке</p>
-      </div>
+        <form class="login-form" novalidate @submit.prevent="onSubmit">
+          <!-- Телефон -->
+          <div class="form-field">
+            <label class="field-label">Номер телефона</label>
+            <input class="form-input" v-model="form.phone" type="tel" inputmode="tel" placeholder="+7(999)999-99-99"
+              :class="inputClass(phoneValid, 'phone')" :aria-invalid="t.phone && !phoneValid" @blur="touch('phone')" />
+            <p v-if="t.phone && !phoneValid" class="field-error">Формат RU: +7… / 8… / 7…</p>
+          </div>
 
-      <!-- Форма входа -->
-      <div class="login-form">
-        <div class="form-field">
-          <label class="field-label">Логин</label>
-          <input
-            class="form-input"
-            v-model="loginForm.phone"
-            type="tel"
-            inputmode="tel"
-            placeholder="+7 (___) ___-__-__"
-            v-maska="'+7 (###) ###-##-##'"
-          />
-        </div>
-        <v-btn class="btn btn-blue desktop-registration">Получить пароль</v-btn>
+          <!-- Пароль -->
+          <div class="form-field">
+            <label class="field-label">Пароль</label>
+            <div class="input-with-icon">
+              <input class="form-input" :type="showPassword ? 'text' : 'password'" v-model="form.password"
+                placeholder="Пароль" :class="inputClass(passwordValid, 'password')"
+                :aria-invalid="t.password && !passwordValid" @blur="touch('password')" />
+              <button type="button" class="toggle-visibility"
+                :aria-label="showPassword ? 'Скрыть пароль' : 'Показать пароль'" @click="showPassword = !showPassword">
+                <svg viewBox="0 0 24 24" aria-hidden="true">
+                  <path :d="showPassword ? mdiEyeOff : mdiEye" />
+                </svg>
+              </button>
+            </div>
+            <p v-if="t.password && !passwordValid" class="field-error">Минимум 8 символов</p>
+            <button type="button" class="forgot-link" @click="goForgot">Забыли пароль?</button>
+          </div>
 
-        <!-- Consent checkbox -->
-        <div class="form-field consent">
-          <label class="checkbox">
-            <input type="checkbox" class="checkbox-input" v-model="agreed" />
-            <span>
-              Я согласен на обработку
-              <p>
-                персональных данных, с
-                <a href="/#about" target="_blank" rel="noopener">правилами </a>
-              </p>
-              <a href="/#about" target="_blank" rel="noopener"> пользования</a>
-              и
-              <a href="/#offer" target="_blank" rel="noopener">договором оферты</a>.
-            </span>
-          </label>
-        </div>
+          <p v-if="serverError" class="server-error" role="alert">{{ serverError }}</p>
 
-        <div class="form-field">
-          <label class="field-label">Пароль</label>
-          <input
-            class="form-input"
-            v-model="loginForm.password"
-            placeholder="Пароль из SMS"
-            autocomplete="one-time-code"
-            v-maska="'******'"
-          />
-        </div>
+          <button type="submit" class="btn btn-primary login-btn" :disabled="loading || !formValid">
+            {{ loading ? 'Входим…' : 'Авторизоваться' }}
+          </button>
 
-        <v-btn class="btn btn-green" :disabled="true">Регистрация</v-btn>
-        <button class="forgot-link">Восстановить пароль</button>
-      </div>
-    </div>
-
-    <!-- Нижняя секция с текстом -->
-    <div class="bottom-section">
-      <div class="bottom-text">
-        <h2 class="earn-title">ЗАРАБАТЫВАЙ</h2>
-        <h2 class="delivery-title">НА ДОСТАВКЕ</h2>
+          <div class="authorize">
+            Нет аккаунта? <a href="/r">Зарегистрироваться</a>
+          </div>
+        </form>
       </div>
     </div>
   </div>
 </template>
 
 <script setup lang="ts">
-import { ref } from 'vue'
+import { computed, ref } from 'vue'
+import { useRouter } from 'vue-router'
+import apiService from '@/services/api'
+import { mdiEye, mdiEyeOff } from '@mdi/js'
 
-const loginForm = ref({
-  phone: '',
-  password: '',
+const router = useRouter()
+const goForgot = () => router.push('/forgot-password')
+const form = ref({ phone: '', password: '' })
+const showPassword = ref(false)
+const loading = ref(false)
+const serverError = ref<string | null>(null)
+
+/** touched */
+type Key = 'phone' | 'password'
+const t = ref<Record<Key, boolean>>({ phone: false, password: false })
+function touch(k: Key) { t.value[k] = true }
+function inputClass(valid: boolean, k: Key) {
+  return { 'is-invalid': t.value[k] && !valid, 'is-valid': t.value[k] && valid }
+}
+
+/** валидаторы */
+const onlyDigits = (s: string) => (s || '').replace(/\D/g, '')
+const phoneValid = computed(() => {
+  const d = onlyDigits(form.value.phone)
+  return d.length === 11 && (d.startsWith('7') || d.startsWith('8'))
 })
+const passwordValid = computed(() => (form.value.password || '').length >= 8)
+const formValid = computed(() => phoneValid.value && passwordValid.value)
 
-const agreed = ref(false)
+/** submit */
+async function onSubmit() {
+  serverError.value = null
+  touch('phone'); touch('password')
+  if (!formValid.value) return
+  try {
+    loading.value = true
+    await apiService.login(form.value.phone.trim(), form.value.password)
+    router.push('/')
+  } catch (err: any) {
+    const msg = err?.response?.data?.message
+    serverError.value = Array.isArray(msg) ? msg.join(', ') : (msg || 'Ошибка входа')
+  } finally {
+    loading.value = false
+  }
+}
 </script>
 
 <style scoped>
+/* Страница */
 .login-page {
+  min-height: 100vh;
+  padding: 56px 0;
+  /* чуть больше воздуха сверху/снизу */
+  display: flex;
+  justify-content: center;
+  align-items: center;
+  background: #f4f4f4;
+}
+
+/* КАРТОЧКА — сделана заметно больше */
+.login-modal {
+  width: clamp(360px, calc(100% - 20vw), 880px);
+  /* раньше было до 653px */
+  background: #ffffff;
+  border-radius: 32px;
+  box-shadow:
+    0 22px 55px rgba(15, 43, 81, 0.10),
+    0 12px 22px rgba(15, 43, 81, 0.05);
+  display: flex;
+  justify-content: center;
+}
+
+/* Внутренние отступы тоже увеличены */
+.login-container {
+  width: 100%;
+  box-sizing: border-box;
   display: flex;
   flex-direction: column;
-  height: 100vh;
-  overflow: hidden;
-  background: #ffffff;
+  padding: 40px 56px 52px;
 }
 
 .login-header {
   text-align: center;
-  color: #ffffff;
-  font-size: 15px;
-  font-weight: 600;
-  margin-bottom: 20px;
-
-  p:first-child {
-    color: #000000;
-  }
-}
-
-.top-section {
-  background: #bdd6b2;
   display: flex;
   flex-direction: column;
-  align-items: center;
-  position: relative;
-  flex: 1;
-  clip-path: polygon(0 0, 100% 0, 100% 79%, 50% 100.3%, 0 79%);
-  padding-bottom: 70px;
+  gap: 8px;
+  margin-top: 0;
+  margin-bottom: 8px;
 }
 
-.bottom-section {
-  background: #ffffff;
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  flex: 1;
-  padding: 80px 20px 60px;
-  margin-top: 10px;
-  min-height: 200px;
-}
-
-.bottom-text {
-  text-align: center;
-}
-
-.earn-title {
-  font-size: 32px;
+.login-title {
+  font-size: 34px;
   font-weight: 700;
-  color: #333333;
-}
-
-.delivery-title {
-  font-size: 40px;
-  font-weight: 700;
-  color: #bdd6b2;
-  margin-top: -15px;
-}
-
-.logo-wrapper {
-  margin-bottom: 10px;
-  margin-top: 5vh;
-}
-
-.logo {
-  font-family: 'Source Sans Pro', sans-serif;
-  font-size: 64px;
-  font-weight: 700;
-  color: #ffffff;
+  color: #171717;
   margin: 0;
-  letter-spacing: 2px;
-  text-align: center;
 }
 
-.logo-accent {
-  color: #000000;
-  font-weight: 700;
+.login-subtitle {
+  font-size: 16px;
+  color: #6b7280;
+  margin: 0;
+  line-height: 1.4;
 }
 
-/* Форма входа */
+/* Форма стала шире */
 .login-form {
   display: flex;
   flex-direction: column;
-  align-items: center;
-  gap: 16px;
+  align-items: stretch;
+  gap: 20px;
+  width: 100%;
+  max-width: 520px;
+  /* раньше 377px */
+  margin: 0 auto;
+  padding: 6px 0 72px;
 }
 
 .form-field {
   display: flex;
   flex-direction: column;
-  width: 280px;
 }
 
 .field-label {
-  font-size: 10px;
-  color: #616161;
-  margin-bottom: 4px;
-  font-weight: 400;
-  margin-top: 15px;
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  font-size: 12px;
+  color: #111827;
+  font-weight: 600;
+  margin: 0 0 6px;
+  line-height: 1;
 }
 
 .form-input {
   width: 100%;
-  height: 50px;
-  padding: 0 16px;
-  border: 1px solid #e0e0e0;
+  height: 52px;
+  /* чуть выше */
+  padding: 0 18px;
+  border: 1px solid #e5e7eb;
   border-radius: 12px;
   background: #ffffff;
   font-size: 16px;
-  color: #333333;
+  color: #111827;
   box-sizing: border-box;
   outline: none;
-  text-align: center;
+  transition: border-color .2s ease, box-shadow .2s ease, background .2s ease;
+}
+
+.form-input:focus {
+  border-color: #2563eb;
+  box-shadow: 0 0 0 3px rgba(37, 99, 235, .08);
 }
 
 .form-input::placeholder {
-  color: #999999;
+  color: #9ca3af;
   font-size: 16px;
 }
 
-.consent {
-  width: 280px;
-  font-size: 12px;
-  color: #616161;
-  line-height: 1.3;
-}
-.consent .checkbox {
-  display: flex;
-  align-items: flex-start;
-  gap: 20px;
-}
-
-/* Белый чекбокс + чёрная галочка */
-.checkbox-input {
-  /* сбрасываем нативный вид */
-  -webkit-appearance: none;
-  appearance: none;
-
-  width: 18px !important;
-  height: 18px !important;
-  margin-top: 2px;
-  display: inline-block;
-  vertical-align: top;
-  cursor: pointer;
-  border: none;
-
-  /* белый фон и чёрная рамка */
-  background-color: #fff;
-
-  border-radius: 4px;
-  align-self: center;
-
-  /* плавность (необязательно) */
-  transition:
-    box-shadow 120ms ease-in-out,
-    border-color 120ms ease-in-out;
-}
-
-/* оставляем фон белым даже в checked */
-.checkbox-input:checked {
-  background-color: #fff;
-}
-
-/* рисуем чёрную галочку поверх */
-.checkbox-input:checked::after {
-  content: '';
-  position: absolute;
-  /* чтобы позиционирование работало, делаем родителя позиционируемым */
-}
-.checkbox-input {
+/* Поле пароля с глазом */
+.input-with-icon {
   position: relative;
 }
-.checkbox-input:checked::after {
-  inset: 0;
-  background-repeat: no-repeat;
-  background-position: center;
-  background-size: 14px 14px;
-  /* векторная чёрная галочка */
-  background-image: url("data:image/svg+xml;utf8,\
-<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24'>\
-<path d='M20 6L9 17l-5-5' fill='none' stroke='black' stroke-width='3' stroke-linecap='round' stroke-linejoin='round'/>\
-</svg>");
+
+.toggle-visibility {
+  position: absolute;
+  right: 10px;
+  top: 50%;
+  transform: translateY(-50%);
+  width: 40px;
+  height: 40px;
+  display: grid;
+  place-items: center;
+  border: none;
+  background: transparent;
+  cursor: pointer;
+  padding: 0;
 }
 
-/* фокус-обводка с клавиатуры */
-.checkbox-input:focus-visible {
-  outline: none;
-  box-shadow: 0 0 0 3px #00000033;
+.toggle-visibility svg {
+  width: 22px;
+  height: 22px;
+  fill: #9ca3af;
 }
 
-.consent input[type='checkbox'] {
-  width: 16px;
-  height: 16px;
-  margin-top: 2px;
-}
-.consent a {
-  color: #5159ff;
-  text-decoration: underline;
+.toggle-visibility:hover svg {
+  fill: #6b7280;
 }
 
+/* Валидация */
+.is-invalid {
+  border-color: #ef4444 !important;
+  background: #fff7f7;
+}
+
+.is-valid {
+  border-color: #34d399;
+}
+
+.field-error {
+  margin: 6px 0 0;
+  font-size: 12px;
+  color: #ef4444;
+}
+
+/* Кнопка */
 .btn {
-  width: 200px;
-  height: 39px;
+  width: 100%;
+  height: 52px;
+  /* выше под размер полей */
   border: none;
   font-size: 15px;
-  border-radius: 10px;
-  font-weight: 600;
+  font-weight: 700;
   cursor: pointer;
-  transition: all 0.2s ease;
+  transition: transform .2s ease, box-shadow .2s ease;
   text-transform: uppercase;
   text-align: center;
   align-content: center;
 }
 
-.btn-green {
-  background: #1ca459;
+.btn:hover {
+  transform: translateY(-1px);
+  box-shadow: 0 10px 20px rgba(0, 0, 0, .08);
+}
+
+.btn-primary {
+  background: #1f402e;
   color: #ffffff;
 }
 
-.btn-green:hover {
-  background: #169447;
+.btn-primary:hover {
+  background: #183323;
 }
 
-.btn-blue {
-  background: #2199c5;
-  color: #ffffff;
-}
-
-.btn-blue:hover {
-  background: #1e87ad;
+.login-btn {
+  margin-top: 2px;
 }
 
 .forgot-link {
+  margin-top: 6px;
+  align-self: flex-start;
   background: none;
   border: none;
-  color: #5159ff;
-  font-size: 20px;
+  padding: 0;
+  color: #6b7280;
+  font-size: 12px;
   cursor: pointer;
-  text-decoration: none;
-  margin-top: 8px;
 }
 
 .forgot-link:hover {
   text-decoration: underline;
+  color: #374151;
 }
 
-.registration-btn {
-  margin-top: 20px;
-  display: none;
+.authorize {
+  text-align: center;
+  margin-top: 8px;
+  color: #ababab;
 }
 
-.desktop-registration {
-  display: block;
+.authorize a {
+  text-decoration: none;
+  color: #ababab;
 }
 
-/* Мобильная адаптация */
+.authorize a:hover {
+  text-decoration: underline;
+}
+
+/* Ошибка сервера */
+.server-error {
+  margin-top: 2px;
+  color: #ef4444;
+  font-size: 13px;
+}
+
+/* Мобила — card остаётся адаптивным и не расползается */
 @media (max-width: 768px) {
-  .top-section {
-    position: relative;
-    background: transparent !important;
-    padding-bottom: 12px; /* поднимаем нижний блок выше */
+  .login-container {
+    padding: 32px 24px 40px;
   }
 
-  /* прямые грани клином */
-  .top-section::before {
-    content: '';
-    position: absolute;
-    inset: 0;
-    background: #bdd6b2;
-    /* высота клина: где сходятся прямые линии */
-    clip-path: polygon(0 0, 100% 0, 100% 79.5%, 50% 100%, 0 79.5%);
-    z-index: 1;
-  }
-
-  /* аккуратное закругление в центре (небольшой «носик») */
-  .top-section::after {
-    content: '';
-    position: absolute;
-    left: 50%;
-    transform: translateX(-50%);
-    bottom: -22px; /* насколько выступает вниз */
-    width: 240px; /* ширина дуги (прямые грани останутся) */
-    height: 66px; /* «острота» дуги: меньше — острее, больше — мягче */
-    background: #bdd6b2;
-    border-radius: 999px; /* эллипс */
-    z-index: 1;
-    pointer-events: none;
-  }
-
-  /* контент поверх фигур */
-  .top-section > * {
-    position: relative;
-    z-index: 2;
-  }
-
-  /* без зазора между секциями */
-  .bottom-section {
-    margin-top: -22px; /* совпадает с bottom у ::after */
-    padding-top: 22px;
-  }
-
-  /* остальной мобильный тюнинг как раньше */
-  .desktop-registration {
-    display: none;
-  }
-  .registration-btn {
-    display: block;
-    width: 100%;
-    max-width: 220px;
-    margin: 16px auto 0;
+  .login-title {
+    font-size: 28px;
   }
 
   .login-form {
-    width: 220px;
-    align-items: stretch;
-    gap: 10px;
-  }
-  .form-field {
-    width: 100%;
-  }
-  .field-label {
-    margin-top: 6px;
-  }
-  .logo {
-    font-size: 28px;
-  }
-  .form-input {
-    height: 34px;
-    font-size: 16px;
-    padding: 0 12px;
-  }
-  .form-input::placeholder {
-    font-size: 16px;
-  }
-  .consent {
-    width: 100%;
-    font-size: 11px;
-  }
-  .btn {
-    height: 34px;
-    font-size: 13px;
-    width: 100%;
-  }
-  .forgot-link {
-    font-size: 13px;
-    margin-top: 6px;
-    align-self: center;
+    max-width: 100%;
+    padding-bottom: 48px;
   }
 
-  .earn-title {
-    font-size: 28px;
-    margin: 0;
-  }
-  .delivery-title {
-    font-size: 36px;
-    margin-top: -8px;
-  }
-  .logo-wrapper {
-    margin-top: 4vh;
-    margin-bottom: 3vh;
+  .form-input,
+  .btn {
+    height: 48px;
   }
 }
 </style>

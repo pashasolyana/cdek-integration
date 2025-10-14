@@ -4,6 +4,9 @@ import HomeView from '../views/HomeView.vue'
 import LoginView from '../views/LoginView.vue'
 import RegisterView from '@/views/RegisterView.vue'
 import NotFoundView from '../views/NotFoundView.vue'
+import ForgotPassword from '@/views/ForgotPassword.vue'
+import Track from '@/views/Track.vue'
+import CreateOrderView from '@/views/CreateOrderView.vue'
 
 const router = createRouter({
   history: createWebHistory(import.meta.env.BASE_URL),
@@ -27,6 +30,18 @@ const router = createRouter({
       meta: { guest: true },
     },
     {
+      path: '/track',
+      name: 'track',
+      component: Track,
+      meta: { guest: true },
+    },
+    {
+      path: '/forgot-password',
+      name: 'forgot',
+      component: ForgotPassword,
+      meta: { guest: true },
+    },
+    {
       path: '/404',
       name: 'not-found',
       component: NotFoundView,
@@ -34,6 +49,12 @@ const router = createRouter({
     {
       path: '/:pathMatch(.*)*',
       redirect: '/404',
+    },
+    {
+      path: '/order/create',
+      name: 'order-create',
+      component: CreateOrderView,
+      meta: { guest: true },
     },
   ],
 })

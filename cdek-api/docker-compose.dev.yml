@@ -3,7 +3,7 @@ version: '3.8'
 services:
   # База данных PostgreSQL для разработки
   postgres:
-    image: postgres:15-alpine
+    image: postgis/postgis:15-3.4-alpine   # тот же major=15 + PostGIS
     container_name: cdek-postgres-dev
     restart: unless-stopped
     environment:
