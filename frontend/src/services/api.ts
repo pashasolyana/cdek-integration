@@ -1,23 +1,63 @@
-import axios, { type AxiosInstance } from 'axios'
+// apiService.ts
+import axios, { type AxiosInstance, type AxiosResponse } from 'axios'
+
+/** ===== Типы под /auth/register ===== */
+export interface RegisterUserPayload {
+  firstName: string
+  lastName: string
+  email?: string
+  phone: string
+  password: string
+}
+
+export interface RegisterCompanyPayload {
+  companyType: string
+  companyName: string
+  inn: string
+  kpp?: string
+  ogrn: string
+  email?: string
+  phone?: string
+  bik: string
+  settlementAccount: string
+  correspondentAccount: string
+  actualAddress: string
+  legalIndex: string
+  legalCity: string
+  legalAddress: string
+  /** если храните ФИО ответственного (у тебя в форме есть): */
+  legalFullName?: string
+}
+
+export interface RegisterPayload {
+  user: RegisterUserPayload
+  company: RegisterCompanyPayload
+}
+
+export interface AuthUser {
+  id: number
+  phone: string
+  createdAt: string
+}
+
+export interface AuthResponse {
+  user: AuthUser
+  accessToken: string
+  refreshToken: string
+}
 
 class ApiService {
   private api: AxiosInstance
   private isRefreshing = false
-  private failedQueue: Array<{
-    resolve: (value?: any) => void
-    reject: (error?: any) => void
-  }> = []
+  private failedQueue: Array<{ resolve: (v?: any) => void; reject: (e?: any) => void }> = []
 
   constructor() {
     this.api = axios.create({
-      baseURL: '/api', // Используем проксированный путь
-      withCredentials: true, // Важно для отправки cookies
-      headers: {
-        'Content-Type': 'application/json'
-      }
+      baseURL: '/api',
+      withCredentials: true,
+      headers: { 'Content-Type': 'application/json' }
     })
 
-    // Interceptor для автоматического обновления токенов
     this.api.interceptors.response.use(
       (response) => response,
       async (error) => {
@@ -25,14 +65,9 @@ class ApiService {
 
         if (error.response?.status === 401 && !originalRequest._retry) {
           if (this.isRefreshing) {
-            // Если уже происходит обновление токена, добавляем запрос в очередь
             return new Promise((resolve, reject) => {
               this.failedQueue.push({ resolve, reject })
-            }).then(() => {
-              return this.api(originalRequest)
-            }).catch((err) => {
-              return Promise.reject(err)
-            })
+            }).then(() => this.api(originalRequest))
           }
 
           originalRequest._retry = true
@@ -44,10 +79,7 @@ class ApiService {
             return this.api(originalRequest)
           } catch (refreshError) {
             this.processQueue(refreshError)
-            // Перенаправляем на страницу входа если не удалось обновить токены
-            if (typeof window !== 'undefined') {
-              window.location.href = '/login'
-            }
+            if (typeof window !== 'undefined') window.location.href = '/login'
             return Promise.reject(refreshError)
           } finally {
             this.isRefreshing = false
@@ -60,46 +92,40 @@ class ApiService {
   }
 
   private processQueue(error: any) {
-    this.failedQueue.forEach(({ resolve, reject }) => {
-      if (error) {
-        reject(error)
-      } else {
-        resolve()
-      }
-    })
-
+    this.failedQueue.forEach(({ resolve, reject }) => (error ? reject(error) : resolve()))
     this.failedQueue = []
   }
 
   private async refreshTokens() {
-    const response = await axios.post('/api/auth/refresh', {}, {
-      withCredentials: true
-    })
-    return response.data
+    const { data } = await axios.post('/api/auth/refresh', {}, { withCredentials: true })
+    return data
   }
 
-  // Методы для авторизации
+  // ----- Auth -----
   async login(phone: string, password: string) {
-    const response = await this.api.post('/auth/login', { phone, password })
-    return response.data
+    const { data } = await this.api.post<AuthResponse>('/auth/login', { phone, password })
+    return data
   }
 
-  async register(phone: string, password: string) {
-    const response = await this.api.post('/auth/register', { phone, password })
-    return response.data
+  /** Новый register: шлём оба шага сразу */
+  async register(payload: RegisterPayload) {
+    const { data } = await this.api.post<AuthResponse, AxiosResponse<AuthResponse>, RegisterPayload>(
+      '/auth/register',
+      payload
+    )
+    return data
   }
 
   async logout() {
-    const response = await this.api.post('/auth/logout')
-    return response.data
+    const { data } = await this.api.post('/auth/logout')
+    return data
   }
 
   async checkAuth() {
-    const response = await this.api.get('/auth/me')
-    return response.data
+    const { data } = await this.api.get('/auth/me')
+    return data
   }
 
-  // Метод для получения экземпляра API (для других запросов)
   getInstance(): AxiosInstance {
     return this.api
   }

@@ -14,7 +14,7 @@ import { Throttle } from '@nestjs/throttler';
 import type { Response, Request } from 'express';
 import { AuthService } from './auth.service';
 import { TokenService } from './token.service';
-import { LoginDto, RegisterDto } from './dto/auth.dto';
+import { ForgotResetDto, ForgotStartDto, ForgotVerifyDto, LoginDto, RegisterDto } from './dto/auth.dto';
 import { JwtAuthGuard } from './guards/jwt-auth.guard';
 import { CurrentUser } from './decorators/current-user.decorator';
 import { Public } from './decorators/public.decorator';
@@ -148,6 +148,30 @@ export class AuthController {
       },
     };
   }
+
+    @Public()
+  @Throttle({ default: { limit: 3, ttl: 15 * 60_000 } }) // 3 раза за 15 минут
+  @Post('forgot')
+  @HttpCode(HttpStatus.OK)
+  async forgot(@Body() dto: ForgotStartDto) {
+    return  this.authService.sendPasswordResetCode(dto);
+
+  }
+
+ @Public()
+@Throttle({ default: { limit: 10, ttl: 15 * 60_000 } })
+@Post('forgot/verify')
+@HttpCode(HttpStatus.OK)
+async verifyForgot(@Body() dto: ForgotVerifyDto) {
+  const { password } = await this.authService.generateNewPasswordByCode(dto);
+  return {
+    success: true,
+    message: 'Новый пароль сгенерирован',
+    password, // ⚠️ В проде лучше отправлять по SMS/e-mail и не отдавать в ответе
+  };
+}
+
+
 
   /**
    * Устанавливает secure cookies с токенами

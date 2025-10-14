@@ -1,8 +1,16 @@
 @import './base.css';
+@import './styles/global.css';
 
 /* Custom global adjustments */
-html,body,#app { height:100%; }
-body { font-family: -apple-system,BlinkMacSystemFont,'Segoe UI','Roboto',sans-serif; background:#f7f7f7; }
+html,
+body,
+#app {
+  height: 100%;
+}
+body {
+  font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', 'Roboto', sans-serif;
+  background: #f7f7f7;
+}
 
 * {
   box-sizing: border-box;

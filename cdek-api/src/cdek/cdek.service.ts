@@ -401,6 +401,7 @@ export class CdekService implements OnModuleInit {
           this.logger.error(
             `Ошибка ответа: ${error.response.status} ${error.config?.method?.toUpperCase()} ${error.config?.url}`,
           );
+          console.log(error.response.data.requests[0])
         } else {
           this.logger.error('Ошибка сети:', error.message);
         }
@@ -460,7 +461,7 @@ protected async post<T = any>(path: string, data?: any, headers: Record<string, 
     }
  
     const response = await this.get('/v2/orders', params);
-    console.log(response.data)
+    console.log(response)
     return response.data;
   }
 

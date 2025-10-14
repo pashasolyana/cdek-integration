@@ -1,283 +1,350 @@
 <template>
   <div class="login-page">
-    <!-- Верхняя зеленая секция -->
-    <div class="top-section">
-      <!-- Логотип -->
-      <div class="logo-wrapper">
-        <h1 class="logo">
-          BEGUN<span class="logo-accent">OK</span>.PRO
-        </h1>
-      </div>
+    <div class="login-modal">
+      <div class="login-container">
+        <header class="login-header">
+          <h2 class="login-title">Авторизация</h2>
+          <p class="login-subtitle">
+            Авторизуйтесь и создавайте <br />
+            заказы как компания
+          </p>
+        </header>
 
-      <!-- Форма входа -->
-      <div class="login-form">
-        <div class="form-field">
-          <label class="field-label">Логин</label>
-          <input 
-            class="form-input" 
-            v-model="loginForm.phone" 
-            type="text" 
-            placeholder="+7 (___) ___-__-__" 
-          />
-        </div>
-        
-        <div class="form-field">
-          <label class="field-label">Пароль</label>
-          <input 
-            class="form-input" 
-            v-model="loginForm.password" 
-            type="password" 
-          />
-        </div>
-        
-        <button class="btn btn-green">ВОЙТИ</button>
-        <button class="btn btn-blue desktop-registration">РЕГИСТРАЦИЯ</button>
-        
-        <button class="forgot-link">Восстановить пароль</button>
-      </div>
-    </div>
+        <form class="login-form" novalidate @submit.prevent="onSubmit">
+          <!-- Телефон -->
+          <div class="form-field">
+            <label class="field-label">Номер телефона</label>
+            <input class="form-input" v-model="form.phone" type="tel" inputmode="tel" placeholder="+7(999)999-99-99"
+              :class="inputClass(phoneValid, 'phone')" :aria-invalid="t.phone && !phoneValid" @blur="touch('phone')" />
+            <p v-if="t.phone && !phoneValid" class="field-error">Формат RU: +7… / 8… / 7…</p>
+          </div>
 
-    <!-- Нижняя секция с текстом -->
-    <div class="bottom-section">
-      <div class="bottom-text">
-        <h2 class="earn-title">ЗАРАБАТЫВАЙ</h2>
-        <h2 class="delivery-title">НА ДОСТАВКЕ</h2>
-        <button class="btn btn-blue registration-btn">РЕГИСТРАЦИЯ</button>
+          <!-- Пароль -->
+          <div class="form-field">
+            <label class="field-label">Пароль</label>
+            <div class="input-with-icon">
+              <input class="form-input" :type="showPassword ? 'text' : 'password'" v-model="form.password"
+                placeholder="Пароль" :class="inputClass(passwordValid, 'password')"
+                :aria-invalid="t.password && !passwordValid" @blur="touch('password')" />
+              <button type="button" class="toggle-visibility"
+                :aria-label="showPassword ? 'Скрыть пароль' : 'Показать пароль'" @click="showPassword = !showPassword">
+                <svg viewBox="0 0 24 24" aria-hidden="true">
+                  <path :d="showPassword ? mdiEyeOff : mdiEye" />
+                </svg>
+              </button>
+            </div>
+            <p v-if="t.password && !passwordValid" class="field-error">Минимум 8 символов</p>
+            <button type="button" class="forgot-link" @click="goForgot">Забыли пароль?</button>
+          </div>
+
+          <p v-if="serverError" class="server-error" role="alert">{{ serverError }}</p>
+
+          <button type="submit" class="btn btn-primary login-btn" :disabled="loading || !formValid">
+            {{ loading ? 'Входим…' : 'Авторизоваться' }}
+          </button>
+
+          <div class="authorize">
+            Нет аккаунта? <a href="/r">Зарегистрироваться</a>
+          </div>
+        </form>
       </div>
     </div>
   </div>
 </template>
 
 <script setup lang="ts">
-import { ref } from 'vue'
+import { computed, ref } from 'vue'
+import { useRouter } from 'vue-router'
+import apiService from '@/services/api'
+import { mdiEye, mdiEyeOff } from '@mdi/js'
 
-const loginForm = ref({
-  phone: '',
-  password: ''
+const router = useRouter()
+const goForgot = () => router.push('/forgot-password')
+const form = ref({ phone: '', password: '' })
+const showPassword = ref(false)
+const loading = ref(false)
+const serverError = ref<string | null>(null)
+
+/** touched */
+type Key = 'phone' | 'password'
+const t = ref<Record<Key, boolean>>({ phone: false, password: false })
+function touch(k: Key) { t.value[k] = true }
+function inputClass(valid: boolean, k: Key) {
+  return { 'is-invalid': t.value[k] && !valid, 'is-valid': t.value[k] && valid }
+}
+
+/** валидаторы */
+const onlyDigits = (s: string) => (s || '').replace(/\D/g, '')
+const phoneValid = computed(() => {
+  const d = onlyDigits(form.value.phone)
+  return d.length === 11 && (d.startsWith('7') || d.startsWith('8'))
 })
+const passwordValid = computed(() => (form.value.password || '').length >= 8)
+const formValid = computed(() => phoneValid.value && passwordValid.value)
+
+/** submit */
+async function onSubmit() {
+  serverError.value = null
+  touch('phone'); touch('password')
+  if (!formValid.value) return
+  try {
+    loading.value = true
+    await apiService.login(form.value.phone.trim(), form.value.password)
+    router.push('/')
+  } catch (err: any) {
+    const msg = err?.response?.data?.message
+    serverError.value = Array.isArray(msg) ? msg.join(', ') : (msg || 'Ошибка входа')
+  } finally {
+    loading.value = false
+  }
+}
 </script>
 
 <style scoped>
-
+/* Страница */
 .login-page {
+  min-height: 100vh;
+  padding: 56px 0;
+  /* чуть больше воздуха сверху/снизу */
   display: flex;
-  flex-direction: column;
-  height: 100vh;
-  overflow: hidden;
-  background: #ffffff;
-}
-
-
-.top-section {
-  background: #BDD6B2;
-  display: flex;
-  flex-direction: column;
-  align-items: center;
-  position: relative;
-  flex: 1;
-  clip-path: polygon(0 0, 100% 0, 100% 79%, 50% 100.3%, 0 79%);
-  padding-bottom: 70px;
-}
-
-.bottom-section {
-  background: #ffffff;
-  display: flex;
-  align-items: center;
   justify-content: center;
-  flex: 1;
-  padding: 80px 20px 60px;
-  margin-top: 10px;
-  min-height: 200px;
+  align-items: center;
+  background: #f4f4f4;
 }
 
-.bottom-text {
+/* КАРТОЧКА — сделана заметно больше */
+.login-modal {
+  width: clamp(360px, calc(100% - 20vw), 880px);
+  /* раньше было до 653px */
+  background: #ffffff;
+  border-radius: 32px;
+  box-shadow:
+    0 22px 55px rgba(15, 43, 81, 0.10),
+    0 12px 22px rgba(15, 43, 81, 0.05);
+  display: flex;
+  justify-content: center;
+}
+
+/* Внутренние отступы тоже увеличены */
+.login-container {
+  width: 100%;
+  box-sizing: border-box;
+  display: flex;
+  flex-direction: column;
+  padding: 40px 56px 52px;
+}
+
+.login-header {
   text-align: center;
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  margin-top: 0;
+  margin-bottom: 8px;
 }
 
-.earn-title {
-  font-size: 32px;
+.login-title {
+  font-size: 34px;
   font-weight: 700;
-  color: #333333;
-}
-
-.delivery-title {
-  font-size: 40px;
-  font-weight: 700;
-  color: #BDD6B2;
-  margin-top: -15px;
-}
-
-.logo-wrapper {
-  margin-bottom: 40px;
-  margin-top: 5vh;
-}
-
-.logo {
-  font-family: 'Source Sans Pro', sans-serif;
-  font-size: 64px;
-  font-weight: 700;
-  color: #ffffff;
+  color: #171717;
   margin: 0;
-  letter-spacing: 2px;
-  text-align: center;
 }
 
-.logo-accent {
-  color: #000000;
-  font-weight: 700;
+.login-subtitle {
+  font-size: 16px;
+  color: #6b7280;
+  margin: 0;
+  line-height: 1.4;
 }
 
-/* Форма входа */
+/* Форма стала шире */
 .login-form {
   display: flex;
   flex-direction: column;
-  align-items: center;
-  gap: 16px;
+  align-items: stretch;
+  gap: 20px;
+  width: 100%;
+  max-width: 520px;
+  /* раньше 377px */
+  margin: 0 auto;
+  padding: 6px 0 72px;
 }
 
 .form-field {
   display: flex;
   flex-direction: column;
-  width: 280px;
 }
 
 .field-label {
-  font-size: 10px;
-  color: #616161;
-  margin-bottom: 4px;
-  font-weight: 400;
-  margin-top: 15px;
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  font-size: 12px;
+  color: #111827;
+  font-weight: 600;
+  margin: 0 0 6px;
+  line-height: 1;
 }
 
 .form-input {
   width: 100%;
-  height: 50px;
-  padding: 0 16px;
-  border: 1px solid #e0e0e0;
+  height: 52px;
+  /* чуть выше */
+  padding: 0 18px;
+  border: 1px solid #e5e7eb;
   border-radius: 12px;
   background: #ffffff;
-  font-size: 24px;
-  color: #333333;
+  font-size: 16px;
+  color: #111827;
   box-sizing: border-box;
   outline: none;
+  transition: border-color .2s ease, box-shadow .2s ease, background .2s ease;
+}
+
+.form-input:focus {
+  border-color: #2563eb;
+  box-shadow: 0 0 0 3px rgba(37, 99, 235, .08);
 }
 
 .form-input::placeholder {
-  color: #999999;
-  font-size: 24px;
+  color: #9ca3af;
+  font-size: 16px;
 }
 
+/* Поле пароля с глазом */
+.input-with-icon {
+  position: relative;
+}
+
+.toggle-visibility {
+  position: absolute;
+  right: 10px;
+  top: 50%;
+  transform: translateY(-50%);
+  width: 40px;
+  height: 40px;
+  display: grid;
+  place-items: center;
+  border: none;
+  background: transparent;
+  cursor: pointer;
+  padding: 0;
+}
+
+.toggle-visibility svg {
+  width: 22px;
+  height: 22px;
+  fill: #9ca3af;
+}
+
+.toggle-visibility:hover svg {
+  fill: #6b7280;
+}
+
+/* Валидация */
+.is-invalid {
+  border-color: #ef4444 !important;
+  background: #fff7f7;
+}
+
+.is-valid {
+  border-color: #34d399;
+}
+
+.field-error {
+  margin: 6px 0 0;
+  font-size: 12px;
+  color: #ef4444;
+}
+
+/* Кнопка */
 .btn {
-  width: 200px;
-  height: 39px;
+  width: 100%;
+  height: 52px;
+  /* выше под размер полей */
   border: none;
   border-radius: 12px;
   font-size: 15px;
-  font-weight: 600;
+  font-weight: 700;
   cursor: pointer;
-  transition: all 0.2s ease;
+  transition: transform .2s ease, box-shadow .2s ease;
   text-transform: uppercase;
 }
 
-.btn-green {
-  background: #1CA459;
+.btn:hover {
+  transform: translateY(-1px);
+  box-shadow: 0 10px 20px rgba(0, 0, 0, .08);
+}
+
+.btn-primary {
+  background: #1f402e;
   color: #ffffff;
 }
 
-.btn-green:hover {
-  background: #169447;
+.btn-primary:hover {
+  background: #183323;
 }
 
-.btn-blue {
-  background: #2199C5;
-  color: #ffffff;
-}
-
-.btn-blue:hover {
-  background: #1e87ad;
+.login-btn {
+  margin-top: 2px;
 }
 
 .forgot-link {
+  margin-top: 6px;
+  align-self: flex-start;
   background: none;
   border: none;
-  color: #5159FF;
-  font-size: 20px;
+  padding: 0;
+  color: #6b7280;
+  font-size: 12px;
   cursor: pointer;
-  text-decoration: none;
-  margin-top: 8px;
 }
 
 .forgot-link:hover {
   text-decoration: underline;
+  color: #374151;
 }
 
-.registration-btn {
-  margin-top: 20px;
-  display: none;
+.authorize {
+  text-align: center;
+  margin-top: 8px;
+  color: #ababab;
 }
 
-.desktop-registration {
-  display: block;
+.authorize a {
+  text-decoration: none;
+  color: #ababab;
 }
 
-/* Мобильная адаптация */
+.authorize a:hover {
+  text-decoration: underline;
+}
+
+/* Ошибка сервера */
+.server-error {
+  margin-top: 2px;
+  color: #ef4444;
+  font-size: 13px;
+}
+
+/* Мобила — card остаётся адаптивным и не расползается */
 @media (max-width: 768px) {
-  .top-section {
-    position: relative;
-    background: transparent !important;
-    padding-bottom: 12px;  /* поднимаем нижний блок выше */
+  .login-container {
+    padding: 32px 24px 40px;
   }
 
-  /* прямые грани клином */
-  .top-section::before {
-    content: "";
-    position: absolute;
-    inset: 0;
-    background: #BDD6B2;
-    /* высота клина: где сходятся прямые линии */
-    clip-path: polygon(0 0, 100% 0, 100% 79.5%, 50% 100%, 0 79.5%);
-    z-index: 1;
+  .login-title {
+    font-size: 28px;
   }
 
-  /* аккуратное закругление в центре (небольшой «носик») */
-  .top-section::after {
-    content: "";
-    position: absolute;
-    left: 50%;
-    transform: translateX(-50%);
-    bottom: -22px;               /* насколько выступает вниз */
-    width: 240px;                /* ширина дуги (прямые грани останутся) */
-    height: 66px;                /* «острота» дуги: меньше — острее, больше — мягче */
-    background: #BDD6B2;
-    border-radius: 999px;        /* эллипс */
-    z-index: 1;
-    pointer-events: none;
+  .login-form {
+    max-width: 100%;
+    padding-bottom: 48px;
   }
 
-  /* контент поверх фигур */
-  .top-section > * { position: relative; z-index: 2; }
-
-  /* без зазора между секциями */
-  .bottom-section {
-    margin-top: -22px;           /* совпадает с bottom у ::after */
-    padding-top: 22px;
+  .form-input,
+  .btn {
+    height: 48px;
   }
-
-  /* остальной мобильный тюнинг как раньше */
-  .desktop-registration { display: none; }
-  .registration-btn { display: block; width: 100%; max-width: 220px; margin: 16px auto 0; }
-
-  .login-form { width: 220px; align-items: stretch; gap: 10px; }
-  .form-field { width: 100%; }
-  .field-label { margin-top: 6px; }
-  .logo { font-size: 28px; }
-  .form-input { height: 34px; font-size: 16px; padding: 0 12px; }
-  .form-input::placeholder { font-size: 16px; }
-  .btn { height: 34px; font-size: 13px; width: 100%; }
-  .forgot-link { font-size: 13px; margin-top: 6px; align-self: center; }
-
-  .earn-title { font-size: 28px; margin: 0; }
-  .delivery-title { font-size: 36px; margin-top: -8px; }
-  .logo-wrapper { margin-top: 4vh; margin-bottom: 3vh; }
 }
 </style>
