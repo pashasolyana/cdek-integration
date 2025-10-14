@@ -6,6 +6,7 @@ import RegisterView from '@/views/RegisterView.vue'
 import NotFoundView from '../views/NotFoundView.vue'
 import ForgotPassword from '@/views/ForgotPassword.vue'
 import Track from '@/views/Track.vue'
+import CreateOrderView from '@/views/CreateOrderView.vue'
 
 const router = createRouter({
   history: createWebHistory(import.meta.env.BASE_URL),
@@ -48,6 +49,12 @@ const router = createRouter({
     {
       path: '/:pathMatch(.*)*',
       redirect: '/404',
+    },
+    {
+      path: '/order/create',
+      name: 'order-create',
+      component: CreateOrderView,
+      meta: { guest: true },
     },
   ],
 })
