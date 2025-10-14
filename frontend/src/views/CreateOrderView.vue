@@ -249,9 +249,10 @@ h4 {
   gap: 10px;
 }
 
-.confirmation-section{
+.confirmation-section {
   margin-top: 40px;
   display: flex;
+  gap: 20px;
 }
 
 .submit-confirmation-btn {
