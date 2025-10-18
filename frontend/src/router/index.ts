@@ -1,12 +1,13 @@
 import { createRouter, createWebHistory } from 'vue-router'
 import { useAuthStore } from '@/stores/auth'
-import HomeView from '../views/HomeView.vue'
 import LoginView from '../views/LoginView.vue'
 import RegisterView from '@/views/RegisterView.vue'
 import NotFoundView from '../views/NotFoundView.vue'
 import ForgotPassword from '@/views/ForgotPassword.vue'
 import Track from '@/views/Track.vue'
 import CreateOrderView from '@/views/CreateOrderView.vue'
+import HomeView from '@/views/HomeView.vue'
+import OrdersView from '@/views/OrdersView.vue'
 
 const router = createRouter({
   history: createWebHistory(import.meta.env.BASE_URL),
@@ -18,16 +19,21 @@ const router = createRouter({
       // meta: { requiresAuth: true }  // Временно убираем авторизацию для тестирования
     },
     {
+      path: '/orders',
+      name: 'orders',
+      component: OrdersView,
+    },
+    {
       path: '/login',
       name: 'login',
       component: LoginView,
-      meta: { guest: true },
+      meta: { guest: true, hideFooter: true },
     },
     {
       path: '/r',
       name: 'register',
       component: RegisterView,
-      meta: { guest: true },
+      meta: { guest: true, hideFooter: true },
     },
     {
       path: '/track',
@@ -39,7 +45,7 @@ const router = createRouter({
       path: '/forgot-password',
       name: 'forgot',
       component: ForgotPassword,
-      meta: { guest: true },
+      meta: { guest: true, hideFooter: true },
     },
     {
       path: '/404',
