@@ -19,6 +19,7 @@ import {
   ApiQuery,
   ApiBearerAuth,
 } from '@nestjs/swagger';
+import { SkipThrottle } from '@nestjs/throttler';
 import { CdekService } from './cdek.service';
 import { CdekAuthDto } from './dto/auth.dto';
 import { GetOrderQueryDto, OrderInfoResponseDto } from './dto/order.dto';
@@ -29,6 +30,7 @@ import { ListFromDbQueryDto, SyncDeliveryPointsQueryDto } from './dto/cdek.dto';
 import { CreateCdekOrderDto } from './dto/create-cdek-order.dto';
 
 @ApiTags('CDEK API')
+@SkipThrottle() // Отключаем throttling для всех методов CDEK
 @Controller('cdek')
 export class CdekController {
   private readonly logger = new Logger(CdekController.name);
@@ -272,7 +274,9 @@ async calcTariffList(@Body() body: CalcTariffListRequestDto): Promise<{
   success: boolean; data: CalcTariffListResponseDto; message: string;
 }> {
   try {
+    console.log(body)
     const data = await this.cdekService.calculateTariffList(body);
+    console.log(data)
     return { success: true, data, message: 'Расчёт выполнен' };
   } catch (error) {
     this.logger.error('Ошибка при расчёте тарифов:', error.message);

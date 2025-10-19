@@ -6,7 +6,10 @@ export class SuggestCitiesQueryDto {
   @IsString() name!: string;
 
   @ApiPropertyOptional({ description: 'ISO_3166-1_alpha-2', example: 'RU' })
-  @IsOptional() @IsString() @Length(2, 2) country_code?: string;
+  @IsOptional() @IsString() @Length(2, 2) country_codes?: string;
+
+  @ApiPropertyOptional({ description: 'Количество результатов', example: 10, default: 10 })
+  @IsOptional() @IsInt() @Min(1) size?: number;
 }
 
 export class RegionsQueryDto {

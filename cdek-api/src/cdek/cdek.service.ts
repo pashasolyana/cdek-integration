@@ -401,7 +401,12 @@ export class CdekService implements OnModuleInit {
           this.logger.error(
             `Ошибка ответа: ${error.response.status} ${error.config?.method?.toUpperCase()} ${error.config?.url}`,
           );
-          console.log(error.response.data.requests[0])
+          const firstRequest = error.response.data?.requests?.[0];
+          if (firstRequest) {
+            console.log(firstRequest);
+          } else if (error.response.data) {
+            console.log(error.response.data);
+          }
         } else {
           this.logger.error('Ошибка сети:', error.message);
         }
@@ -474,13 +479,21 @@ protected async post<T = any>(path: string, data?: any, headers: Record<string, 
   }
 
   async calculateTariffList(body: CalcTariffListRequestDto) {
-     const response = await this.post('/v2/calculator/tarifflist', body);
-  return response.data as CalcTariffListResponseDto;
+    this.logger.log('Запрос на расчёт тарифов:', JSON.stringify(body, null, 2));
+    const response = await this.post('/v2/calculator/tarifflist', body);
+    console.log(response)
+    this.logger.log('Ответ CDEK API:', JSON.stringify(response.data, null, 2));
+    return response as CalcTariffListResponseDto;
   }
 
   /** /v2/location/suggest/cities */
-async suggestCities(params: { name: string; country_code?: string }) {
-  const res = await this.get('/v2/location/suggest/cities', params);
+async suggestCities(params: { name: string; country_codes?: string; size?: number }) {
+  const queryParams = {
+    name: params.name,
+    country_codes: params.country_codes || 'RU',
+    size: params.size || 10
+  };
+  const res = await this.get('/v2/location/suggest/cities', queryParams);
   return res.data;
 }
 

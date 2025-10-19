@@ -9,6 +9,7 @@ import { PrismaModule } from './prisma/prisma.module';
 import { CdekModule } from './cdek/cdek.module';
 import { HealthModule } from './health/health.module';
 import { AuthModule } from './auth/auth.module';
+import { DadataModule } from './dadata/dadata.module';
 
 @Module({
   imports: [
@@ -46,16 +47,17 @@ import { AuthModule } from './auth/auth.module';
     PrismaModule,
     AuthModule,
     CdekModule,
+    DadataModule,
     HealthModule,
   ],
   controllers: [AppController],
   providers: [
     AppService,
-    // Глобальный guard для rate limiting
-    {
-      provide: APP_GUARD,
-      useClass: ThrottlerGuard,
-    },
+    // Глобальный guard для rate limiting - ОТКЛЮЧЕН
+    // {
+    //   provide: APP_GUARD,
+    //   useClass: ThrottlerGuard,
+    // },
   ],
 })
 export class AppModule {}
