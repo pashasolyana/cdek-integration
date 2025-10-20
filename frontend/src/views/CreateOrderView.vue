@@ -1,48 +1,92 @@
 <script setup lang="ts">
 import Dropdown from '@/components/Dropdown.vue'
 import Input from '@/components/Input.vue'
-import { ref } from 'vue'
+import PVZCard from '@/components/PVZCard.vue'
+import YMap from '@/components/YMap.vue'
+import { onBeforeUnmount, onMounted, ref, watch } from 'vue'
+import { useRouter } from 'vue-router'
 
-let selectedOption1 = ref<string | null>(null)
-let selectedOption2 = ref<string | null>(null)
-let selectedOption3 = ref<string | null>(null)
+const router = useRouter()
+const toMain = () => router.push('/')
+
+let TK = ref<string | null>(null)
+let deliveryMethod = ref<string | null>(null)
+let attachmentType = ref<string | null>(null)
+
+let isTK = ref(false)
+watch(TK, (newVal) => {
+  isTK.value = newVal !== null
+})
+
+let isDeliveryMethod = ref(false)
+watch(deliveryMethod, (newVal) => {
+  isDeliveryMethod.value = newVal !== null
+})
+
+let isCourier = ref(false)
+watch(deliveryMethod, (newVal) => {
+  isCourier.value = newVal === 'Курьером'
+})
+
+const isMapModalOpen = ref(false)
+watch(isMapModalOpen, (newVal) => {
+  document.body.style.overflow = newVal ? 'hidden' : ''
+})
+
+const handleEsc = (event: { key: string }) => {
+  if (event.key === 'Escape' && isMapModalOpen.value) {
+    isMapModalOpen.value = false
+  }
+}
+
+onMounted(() => {
+  window.addEventListener('keydown', handleEsc)
+})
+
+onBeforeUnmount(() => {
+  window.removeEventListener('keydown', handleEsc)
+})
 </script>
 
 <template>
   <main class="main-container">
+    <div class="toMain-btn-container">
+      <button class="toMain-btn" @click="toMain()">← Главная</button>
+    </div>
     <h1>Оформить заказ</h1>
     <section class="dropdawn-section">
       <Dropdown
         :options="[
-          { value: 'option1', label: 'Option 1' },
-          { value: 'option2', label: 'Option 2' },
-          { value: 'option3', label: 'Option 3' },
+          { value: 'СДЭК', label: 'СДЭК' },
+          { value: 'Авито', label: 'Авито' },
+          { value: 'Почта России', label: 'Почта России' },
         ]"
-        v-model="selectedOption1"
+        v-model="TK"
         placeholder="Торговая компания"
         width="625px"
         height="54px"
       />
       <Dropdown
         :options="[
-          { value: 'option1', label: 'Option 1' },
-          { value: 'option2', label: 'Option 2' },
-          { value: 'option3', label: 'Option 3' },
+          { value: 'В ПВЗ', label: 'В ПВЗ' },
+          { value: 'В постамат', label: 'В постамат' },
+          { value: 'Курьером', label: 'Курьером' },
         ]"
-        v-model="selectedOption2"
+        v-model="deliveryMethod"
         placeholder="Способ доставки"
         width="625px"
         height="54px"
+        :disabled="!isTK"
       />
     </section>
     <section class="address-section">
       <section class="required-address-section">
         <div class="required-address-inputs">
-          <Input height="54px" width="308px" placeholder="Город" disabled />
-          <Input height="54px" width="308px" placeholder="Адрес" disabled />
+          <Input height="54px" width="308px" placeholder="Город" :disabled="!isDeliveryMethod" />
+          <Input height="54px" width="308px" placeholder="Адрес" :disabled="!isDeliveryMethod" />
         </div>
         <div class="map">
-          <p>Указать на карте</p>
+          <p @click="isMapModalOpen = true">Указать на карте</p>
           <svg
             width="19"
             height="19"
@@ -65,9 +109,27 @@ let selectedOption3 = ref<string | null>(null)
           </svg>
         </div>
       </section>
+
+      <div v-if="isMapModalOpen" class="modal-overlay" @click.self="isMapModalOpen = false">
+        <div class="modal-window">
+          <div class="ymap-container">
+            <YMap />
+          </div>
+          <div class="left-side-container">
+            <div class="close-btn-container">
+              <button class="close-btn" @click="isMapModalOpen = false">×</button>
+            </div>
+            <div class="list">
+              <Input height="54px" width="100%" placeholder="Найти" border="2px solid #A0B7AB" />
+              <PVZCard PVZName="СДЭК" address="Улица Мира" />
+            </div>
+          </div>
+        </div>
+      </div>
+
       <section class="extra-address-section">
-        <Input height="54px" width="308px" placeholder="Квартира" disabled />
-        <Input height="54px" width="308px" placeholder="Индекс" disabled />
+        <Input height="54px" width="308px" placeholder="Квартира" :disabled="!isCourier" />
+        <Input height="54px" width="308px" placeholder="Индекс" :disabled="!isCourier" />
       </section>
     </section>
     <section class="customer-seller-section">
@@ -89,7 +151,7 @@ let selectedOption3 = ref<string | null>(null)
           { value: 'option2', label: 'Option 2' },
           { value: 'option3', label: 'Option 3' },
         ]"
-        v-model="selectedOption3"
+        v-model="attachmentType"
         placeholder="Тип вложения"
         width="234px"
         height="54px"
@@ -131,13 +193,33 @@ let selectedOption3 = ref<string | null>(null)
 
 <style scoped>
 .main-container {
-  padding: 30px 20px 20px 20px;
+  padding: 50px 20px 100px 20px;
   display: flex;
   flex-direction: column;
   align-items: center;
-  justify-content: center;
+  justify-content: flex-start;
   width: 100dvw;
-  height: calc(100dvh - 68 - 56);
+  height: calc(100dvh - 82px);
+  overflow: scroll;
+}
+
+.toMain-btn-container {
+  display: flex;
+  align-items: center;
+  justify-content: flex-start;
+  width: 100%;
+  margin-bottom: 20px;
+}
+
+.toMain-btn {
+  position: absolute;
+  background: none;
+  border: none;
+  font-size: 20px;
+  cursor: pointer;
+  display: flex;
+  align-items: center;
+  justify-content: center;
 }
 
 .dropdawn-section {
@@ -167,16 +249,88 @@ let selectedOption3 = ref<string | null>(null)
   display: flex;
   align-items: flex-end;
   justify-content: end;
-  cursor: pointer;
 
   p {
     display: flex;
     font-size: 12px;
+    cursor: pointer;
   }
 
   svg {
     display: flex;
   }
+}
+
+.modal-overlay {
+  position: fixed;
+  top: 82px;
+  left: 0;
+  width: 100dvw;
+  height: calc(100dvh - 82px);
+  background: rgba(0, 0, 0, 0.5);
+  display: flex;
+  align-items: flex-start;
+  justify-content: center;
+  z-index: 1000;
+  overflow: scroll;
+  padding: 20px;
+}
+
+.modal-window {
+  background: #fff;
+  border-radius: 16px;
+  padding: 10px;
+  width: 90dvw;
+  height: 80dvh;
+  max-width: 90%;
+  box-shadow: 0 4px 20px rgba(0, 0, 0, 0.2);
+  position: relative;
+  display: flex;
+}
+
+.ymap-container {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 75dvw;
+  height: 100%;
+  border-radius: 15px;
+  overflow: hidden;
+}
+
+.left-side-container {
+  display: flex;
+  flex-direction: column;
+  width: 25dvw;
+  height: 100%;
+}
+
+.close-btn-container {
+  display: flex;
+  align-items: center;
+  justify-content: flex-end;
+  width: 100%;
+  height: 30px;
+}
+
+.close-btn {
+  position: absolute;
+  background: none;
+  border: none;
+  font-size: 24px;
+  cursor: pointer;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.list {
+  display: flex;
+  flex-direction: column;
+  width: 25dvw;
+  height: 100%;
+  padding: 10px;
+  gap: 10px;
 }
 
 .extra-address-section {

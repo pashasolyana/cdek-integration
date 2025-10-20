@@ -25,11 +25,18 @@ const props = defineProps({
   height: {
     type: String,
   },
+  border: {
+    type: String,
+    default: 'none',
+  },
 })
 </script>
 
 <template>
-  <div class="input-container" :style="{ width: props.width, height: props.height }">
+  <div
+    class="input-container"
+    :style="{ width: props.width, height: props.height, border: props.border }"
+  >
     <input
       :type="props.type"
       :value="props.value"
@@ -43,6 +50,7 @@ const props = defineProps({
 .input-container {
   display: flex;
   flex-direction: column;
+  border-radius: 5px;
 }
 
 input {

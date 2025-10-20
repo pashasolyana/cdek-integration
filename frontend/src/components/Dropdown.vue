@@ -7,6 +7,7 @@ const props = defineProps<{
   placeholder: string
   width: string
   height: string
+  disabled?: boolean
 }>()
 
 const emit = defineEmits(['update:modelValue'])
@@ -26,11 +27,15 @@ const selectedValueLabel = computed(() => {
   return found ? found.label : ''
 })
 
+const isDropdownEnabled = computed(() => props.disabled)
+
 const toggle = () => {
+  if (isDropdownEnabled.value) return
   isOpen.value = !isOpen.value
 }
 
 const selectOption = (option: { value: string; label: string }) => {
+  if (isDropdownEnabled.value) return
   selectedValue.value = option.value
   emit('update:modelValue', option.value)
   isOpen.value = false
@@ -38,7 +43,12 @@ const selectOption = (option: { value: string; label: string }) => {
 </script>
 
 <template>
-  <div class="dropdown" @click="toggle" :style="{ width: width, minHeight: height }">
+  <div
+    class="dropdown"
+    :class="{ disabled: isDropdownEnabled }"
+    @click="toggle"
+    :style="{ width: width, minHeight: height }"
+  >
     <div class="dropdown-selected">
       <span :class="{ placeholder: !selectedValue }">
         {{ selectedValueLabel || placeholder }}
@@ -70,9 +80,15 @@ const selectOption = (option: { value: string; label: string }) => {
 <style scoped>
 .dropdown {
   position: relative;
-  width: 200px;
   user-select: none;
   cursor: pointer;
+  transition: opacity 0.2s ease;
+}
+
+.dropdown.disabled {
+  opacity: 0.5;
+  cursor: not-allowed;
+  pointer-events: none;
 }
 
 .dropdown-selected {

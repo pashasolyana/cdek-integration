@@ -322,4 +322,10 @@ onBeforeUnmount(() => {
     grid-template-columns: auto 1fr;
   }
 }
+
+.header-position {
+  position: sticky;
+  top: 0;
+  z-index: 1;
+}
 </style>

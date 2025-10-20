@@ -21,7 +21,8 @@
     "js-cookie": "^3.0.5",
     "pinia": "^3.0.3",
     "vue": "^3.5.18",
-    "vue-router": "^4.5.1"
+    "vue-router": "^4.5.1",
+    "vue-yandex-maps": "^2.2.3"
   },
   "devDependencies": {
     "@tsconfig/node22": "^22.0.2",
@@ -31,6 +32,7 @@
     "@vue/eslint-config-prettier": "^10.2.0",
     "@vue/eslint-config-typescript": "^14.6.0",
     "@vue/tsconfig": "^0.7.0",
+    "@yandex/ymaps3-types": "^1.0.17734864",
     "eslint": "^9.31.0",
     "eslint-plugin-vue": "~10.3.0",
     "jiti": "^2.4.2",
