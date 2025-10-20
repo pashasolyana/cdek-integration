@@ -401,7 +401,12 @@ export class CdekService implements OnModuleInit {
           this.logger.error(
             `Ошибка ответа: ${error.response.status} ${error.config?.method?.toUpperCase()} ${error.config?.url}`,
           );
-          console.log(error.response.data.requests[0])
+          const firstRequest = error.response.data?.requests?.[0];
+          if (firstRequest) {
+            console.log(firstRequest);
+          } else if (error.response.data) {
+            console.log(error.response.data);
+          }
         } else {
           this.logger.error('Ошибка сети:', error.message);
         }
@@ -474,13 +479,21 @@ protected async post<T = any>(path: string, data?: any, headers: Record<string, 
   }
 
   async calculateTariffList(body: CalcTariffListRequestDto) {
-     const response = await this.post('/v2/calculator/tarifflist', body);
-  return response.data as CalcTariffListResponseDto;
+    this.logger.log('Запрос на расчёт тарифов:', JSON.stringify(body, null, 2));
+    const response = await this.post('/v2/calculator/tarifflist', body);
+    console.log(response)
+    this.logger.log('Ответ CDEK API:', JSON.stringify(response.data, null, 2));
+    return response as CalcTariffListResponseDto;
   }
 
   /** /v2/location/suggest/cities */
-async suggestCities(params: { name: string; country_code?: string }) {
-  const res = await this.get('/v2/location/suggest/cities', params);
+async suggestCities(params: { name: string; country_codes?: string; size?: number }) {
+  const queryParams = {
+    name: params.name,
+    country_codes: params.country_codes || 'RU',
+    size: params.size || 10
+  };
+  const res = await this.get('/v2/location/suggest/cities', queryParams);
   return res.data;
 }
 
@@ -615,51 +628,116 @@ private async fetchDeliveryPointsPage(params: any, page: number, size = 1000) {
 
 // ===== основной синк =====
 async syncDeliveryPoints(params: any = {}) {
+  const overallStartTime = Date.now();
   const startedAt = new Date();
   let page = 0;
   let total = 0;
-  const size = Number(params.size ?? 1000);
+  const pageSize = 1000; // размер страницы API (максимум разумный)
+  const batchSize = 100; // размер пакета для сохранения в БД
 
+  this.logger.log('🚀 Начало синхронизации пунктов выдачи CDEK');
+  this.logger.log(`⚙️  Настройки: размер страницы API=${pageSize}, размер пакета БД=${batchSize}`);
+  
+  // Очищаем все данные
+  this.logger.log('🗑️  Этап 1/2: Очистка существующих данных...');
+  const cleanupStart = Date.now();
+  await this.prismaService.$transaction(async (tx) => {
+    await tx.cdekDPPhone.deleteMany({});
+    this.logger.log('  ✓ Удалены телефоны');
+    await tx.cdekDPImage.deleteMany({});
+    this.logger.log('  ✓ Удалены изображения');
+    await tx.cdekDPWorkTime.deleteMany({});
+    this.logger.log('  ✓ Удалено расписание работы');
+    await tx.cdekDPWorkTimeException.deleteMany({});
+    this.logger.log('  ✓ Удалены исключения в расписании');
+    await tx.cdekDPDimension.deleteMany({});
+    this.logger.log('  ✓ Удалены габариты');
+    await tx.cdekDeliveryPoint.deleteMany({});
+    this.logger.log('  ✓ Удалены пункты выдачи');
+  });
+  const cleanupDuration = ((Date.now() - cleanupStart) / 1000).toFixed(2);
+  this.logger.log(`✅ Очистка завершена за ${cleanupDuration}с`);
+
+  // Загружаем и сохраняем порциями (не храним всё в памяти!)
+  this.logger.log('📥 Этап 2/2: Загрузка и сохранение данных (потоковая обработка)...');
+  const processStart = Date.now();
+  
   while (true) {
-    const batch = await this.fetchDeliveryPointsPage(params, page, size);
-    if (!batch.length) break;
-
-    // upsert основного + перезалив детей
-    for (const dp of batch) {
-      const base = this.mapDeliveryPointToDb(dp);
-      await this.prismaService.$transaction(async (tx) => {
-        await tx.cdekDeliveryPoint.upsert({
-          where: { uuid: base.uuid },
-          create: base,
-          update: base,
-        });
-        // зачистка детей (проще и безопасно для тестов)
-        await tx.cdekDPPhone.deleteMany({ where: { dpUuid: base.uuid } });
-        await tx.cdekDPImage.deleteMany({ where: { dpUuid: base.uuid } });
-        await tx.cdekDPWorkTime.deleteMany({ where: { dpUuid: base.uuid } });
-        await tx.cdekDPWorkTimeException.deleteMany({ where: { dpUuid: base.uuid } });
-        await tx.cdekDPDimension.deleteMany({ where: { dpUuid: base.uuid } });
-
-        const ch = this.mapChildren(dp);
-        if (ch.phones.length)      await tx.cdekDPPhone.createMany({ data: ch.phones, skipDuplicates: true });
-        if (ch.images.length)      await tx.cdekDPImage.createMany({ data: ch.images, skipDuplicates: true });
-        if (ch.workTimes.length)   await tx.cdekDPWorkTime.createMany({ data: ch.workTimes, skipDuplicates: true });
-        if (ch.exceptions.length)  await tx.cdekDPWorkTimeException.createMany({ data: ch.exceptions, skipDuplicates: true });
-        if (ch.dimensions.length)  await tx.cdekDPDimension.createMany({ data: ch.dimensions, skipDuplicates: true });
-      });
+    const pageStart = Date.now();
+    this.logger.log(`\n  📄 Страница ${page + 1}: загрузка из CDEK API (размер: ${pageSize})...`);
+    
+    const apiData = await this.fetchDeliveryPointsPage(params, page, pageSize);
+    if (!apiData.length) {
+      this.logger.log(`  ℹ️  Страница ${page + 1} пуста - обработка завершена`);
+      break;
     }
+    
+    const pageDuration = ((Date.now() - pageStart) / 1000).toFixed(2);
+    this.logger.log(`  ✓ Загружено ${apiData.length} записей за ${pageDuration}с`);
+    
+    // Сразу сохраняем эту страницу пакетами
+    this.logger.log(`  💾 Сохранение страницы ${page + 1} в БД пакетами по ${batchSize}...`);
+    const totalBatches = Math.ceil(apiData.length / batchSize);
+    
+    for (let i = 0; i < apiData.length; i += batchSize) {
+      const batchNumber = Math.floor(i / batchSize) + 1;
+      const batchStart = Date.now();
+      const batch = apiData.slice(i, i + batchSize);
+      
+      await this.prismaService.$transaction(async (tx) => {
+        const deliveryPointsData: any[] = [];
+        const phonesData: any[] = [];
+        const imagesData: any[] = [];
+        const workTimesData: any[] = [];
+        const exceptionsData: any[] = [];
+        const dimensionsData: any[] = [];
 
-    total += batch.length;
+        for (const dp of batch) {
+          const base = this.mapDeliveryPointToDb(dp);
+          deliveryPointsData.push(base);
+
+          const ch = this.mapChildren(dp);
+          phonesData.push(...ch.phones);
+          imagesData.push(...ch.images);
+          workTimesData.push(...ch.workTimes);
+          exceptionsData.push(...ch.exceptions);
+          dimensionsData.push(...ch.dimensions);
+        }
+
+        // Массовые вставки
+        if (deliveryPointsData.length) await tx.cdekDeliveryPoint.createMany({ data: deliveryPointsData });
+        if (phonesData.length)         await tx.cdekDPPhone.createMany({ data: phonesData });
+        if (imagesData.length)         await tx.cdekDPImage.createMany({ data: imagesData });
+        if (workTimesData.length)      await tx.cdekDPWorkTime.createMany({ data: workTimesData });
+        if (exceptionsData.length)     await tx.cdekDPWorkTimeException.createMany({ data: exceptionsData });
+        if (dimensionsData.length)     await tx.cdekDPDimension.createMany({ data: dimensionsData });
+      });
+
+      total += batch.length;
+      const batchDuration = ((Date.now() - batchStart) / 1000).toFixed(2);
+      this.logger.log(`    ✓ Пакет ${batchNumber}/${totalBatches}: сохранено ${batch.length} записей за ${batchDuration}с (всего: ${total})`);
+    }
+    
+    const pageFullDuration = ((Date.now() - pageStart) / 1000).toFixed(2);
+    this.logger.log(`  ✅ Страница ${page + 1} полностью обработана за ${pageFullDuration}с`);
+    
     page += 1;
+    
+    // Небольшая пауза между страницами
     await new Promise(r => setTimeout(r, 150));
   }
 
-  const { count: removed } = await this.prismaService.cdekDeliveryPoint.updateMany({
-    where: { deletedAt: null, OR: [{ lastSeenAt: null }, { lastSeenAt: { lt: startedAt } }] },
-    data: { deletedAt: new Date() },
-  });
-
-  return { upserted: total, removed };
+  const processDuration = ((Date.now() - processStart) / 1000).toFixed(2);
+  const totalDuration = ((Date.now() - overallStartTime) / 1000).toFixed(2);
+  const avgSpeed = total / (Number(processDuration) / 60);
+  
+  this.logger.log(`\n🎉 Синхронизация успешно завершена!`);
+  this.logger.log(`   📊 Создано записей: ${total}`);
+  this.logger.log(`   📄 Обработано страниц: ${page}`);
+  this.logger.log(`   ⏱️  Общее время: ${totalDuration}с (очистка: ${cleanupDuration}с, обработка: ${processDuration}с)`);
+  this.logger.log(`   ⚡ Средняя скорость: ${avgSpeed.toFixed(0)} записей/мин`);
+  
+  return { created: total, removed: 0 };
 }
 
 // ===== чтение с фильтрами и bbox =====

@@ -2,7 +2,8 @@
   <header class="topbar">
     <div class="topbar__inner">
       <a class="brand" href="/">
-        <span class="brand__text">BEGUN</span><span class="brand__text">OK</span><span class="brand__ok">.PRO</span>
+        <span class="brand__text">BEGUN</span><span class="brand__text">OK</span
+        ><span class="brand__ok">.PRO</span>
       </a>
 
       <nav class="menu">
@@ -68,7 +69,7 @@ onBeforeUnmount(() => {
 <style scoped>
 /* Шапка на всю ширину, фиксированная высота */
 .topbar {
-  height: var(--h);
+  height: var(--header-h);
   background: #fff;
   border-bottom: 1px solid var(--border);
   display: flex;

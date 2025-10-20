@@ -14,8 +14,16 @@
           <!-- Телефон -->
           <div class="form-field">
             <label class="field-label">Номер телефона</label>
-            <input class="form-input" v-model="form.phone" type="tel" inputmode="tel" placeholder="+7(999)999-99-99"
-              :class="inputClass(phoneValid, 'phone')" :aria-invalid="t.phone && !phoneValid" @blur="touch('phone')" />
+            <input
+              class="form-input"
+              v-model="form.phone"
+              type="tel"
+              inputmode="tel"
+              placeholder="+7(999)999-99-99"
+              :class="inputClass(phoneValid, 'phone')"
+              :aria-invalid="t.phone && !phoneValid"
+              @blur="touch('phone')"
+            />
             <p v-if="t.phone && !phoneValid" class="field-error">Формат RU: +7… / 8… / 7…</p>
           </div>
 
@@ -23,11 +31,21 @@
           <div class="form-field">
             <label class="field-label">Пароль</label>
             <div class="input-with-icon">
-              <input class="form-input" :type="showPassword ? 'text' : 'password'" v-model="form.password"
-                placeholder="Пароль" :class="inputClass(passwordValid, 'password')"
-                :aria-invalid="t.password && !passwordValid" @blur="touch('password')" />
-              <button type="button" class="toggle-visibility"
-                :aria-label="showPassword ? 'Скрыть пароль' : 'Показать пароль'" @click="showPassword = !showPassword">
+              <input
+                class="form-input"
+                :type="showPassword ? 'text' : 'password'"
+                v-model="form.password"
+                placeholder="Пароль"
+                :class="inputClass(passwordValid, 'password')"
+                :aria-invalid="t.password && !passwordValid"
+                @blur="touch('password')"
+              />
+              <button
+                type="button"
+                class="toggle-visibility"
+                :aria-label="showPassword ? 'Скрыть пароль' : 'Показать пароль'"
+                @click="showPassword = !showPassword"
+              >
                 <svg viewBox="0 0 24 24" aria-hidden="true">
                   <path :d="showPassword ? mdiEyeOff : mdiEye" />
                 </svg>
@@ -43,9 +61,7 @@
             {{ loading ? 'Входим…' : 'Авторизоваться' }}
           </button>
 
-          <div class="authorize">
-            Нет аккаунта? <a href="/r">Зарегистрироваться</a>
-          </div>
+          <div class="authorize">Нет аккаунта? <a href="/r">Зарегистрироваться</a></div>
         </form>
       </div>
     </div>
@@ -68,7 +84,9 @@ const serverError = ref<string | null>(null)
 /** touched */
 type Key = 'phone' | 'password'
 const t = ref<Record<Key, boolean>>({ phone: false, password: false })
-function touch(k: Key) { t.value[k] = true }
+function touch(k: Key) {
+  t.value[k] = true
+}
 function inputClass(valid: boolean, k: Key) {
   return { 'is-invalid': t.value[k] && !valid, 'is-valid': t.value[k] && valid }
 }
@@ -85,7 +103,8 @@ const formValid = computed(() => phoneValid.value && passwordValid.value)
 /** submit */
 async function onSubmit() {
   serverError.value = null
-  touch('phone'); touch('password')
+  touch('phone')
+  touch('password')
   if (!formValid.value) return
   try {
     loading.value = true
@@ -93,7 +112,7 @@ async function onSubmit() {
     router.push('/')
   } catch (err: any) {
     const msg = err?.response?.data?.message
-    serverError.value = Array.isArray(msg) ? msg.join(', ') : (msg || 'Ошибка входа')
+    serverError.value = Array.isArray(msg) ? msg.join(', ') : msg || 'Ошибка входа'
   } finally {
     loading.value = false
   }
@@ -103,7 +122,7 @@ async function onSubmit() {
 <style scoped>
 /* Страница */
 .login-page {
-  min-height: 100vh;
+  min-height: calc(100dvh - var(--header-current) - var(--footer-current));
   padding: 56px 0;
   /* чуть больше воздуха сверху/снизу */
   display: flex;
@@ -119,7 +138,7 @@ async function onSubmit() {
   background: #ffffff;
   border-radius: 32px;
   box-shadow:
-    0 22px 55px rgba(15, 43, 81, 0.10),
+    0 22px 55px rgba(15, 43, 81, 0.1),
     0 12px 22px rgba(15, 43, 81, 0.05);
   display: flex;
   justify-content: center;
@@ -198,12 +217,15 @@ async function onSubmit() {
   color: #111827;
   box-sizing: border-box;
   outline: none;
-  transition: border-color .2s ease, box-shadow .2s ease, background .2s ease;
+  transition:
+    border-color 0.2s ease,
+    box-shadow 0.2s ease,
+    background 0.2s ease;
 }
 
 .form-input:focus {
   border-color: #2563eb;
-  box-shadow: 0 0 0 3px rgba(37, 99, 235, .08);
+  box-shadow: 0 0 0 3px rgba(37, 99, 235, 0.08);
 }
 
 .form-input::placeholder {
@@ -263,17 +285,20 @@ async function onSubmit() {
   height: 52px;
   /* выше под размер полей */
   border: none;
-  border-radius: 12px;
   font-size: 15px;
   font-weight: 700;
   cursor: pointer;
-  transition: transform .2s ease, box-shadow .2s ease;
+  transition:
+    transform 0.2s ease,
+    box-shadow 0.2s ease;
   text-transform: uppercase;
+  text-align: center;
+  align-content: center;
 }
 
 .btn:hover {
   transform: translateY(-1px);
-  box-shadow: 0 10px 20px rgba(0, 0, 0, .08);
+  box-shadow: 0 10px 20px rgba(0, 0, 0, 0.08);
 }
 
 .btn-primary {
