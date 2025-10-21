@@ -12,25 +12,6 @@ import { cdekService, type CdekCity, type PackageItem } from '@/services/cdek.se
 const router = useRouter()
 const toMain = () => router.push('/')
 
-let TK = ref<string | null>(null)
-let deliveryMethod = ref<string | null>(null)
-let attachmentType = ref<string | null>(null)
-
-let isTK = ref(false)
-watch(TK, (newVal) => {
-  isTK.value = newVal !== null
-})
-
-let isDeliveryMethod = ref(false)
-watch(deliveryMethod, (newVal) => {
-  isDeliveryMethod.value = newVal !== null
-})
-
-let isCourier = ref(false)
-watch(deliveryMethod, (newVal) => {
-  isCourier.value = newVal === 'Курьером'
-})
-
 const isMapModalOpen = ref(false)
 watch(isMapModalOpen, (newVal) => {
   document.body.style.overflow = newVal ? 'hidden' : ''
@@ -50,10 +31,28 @@ onBeforeUnmount(() => {
   window.removeEventListener('keydown', handleEsc)
 })
 
-
 // Основные данные формы
 const tradingCompany = ref<string | null>(null)
-// const deliveryMethod = ref<string | null>(null)
+const deliveryMethod = ref<string | null>(null)
+
+// ---------Обработка доступности инпутов
+
+let isTK = ref(false)
+watch(tradingCompany, (newVal) => {
+  isTK.value = newVal !== null
+})
+
+let isDeliveryMethod = ref(false)
+watch(deliveryMethod, (newVal) => {
+  isDeliveryMethod.value = newVal !== null
+})
+
+// -----------
+
+let isCourier = ref(false)
+watch(deliveryMethod, (newVal) => {
+  isCourier.value = newVal === 'Курьером'
+})
 
 // Адрес отправления
 const fromCity = ref('')
@@ -139,14 +138,14 @@ const createEmptyPackage = (): Package => ({
   weight: '',
   length: '',
   width: '',
-  height: ''
+  height: '',
 })
 
 const createEmptyPackageErrors = (): PackageFieldErrors => ({
   weight: '',
   length: '',
   width: '',
-  height: ''
+  height: '',
 })
 
 const packages = ref<Package[]>([createEmptyPackage()])
@@ -156,7 +155,7 @@ const formErrors = reactive({
   fromCity: '',
   toCity: '',
   fromPostalCode: '',
-  toPostalCode: ''
+  toPostalCode: '',
 })
 
 const calculationAlert = ref<StatusAlert | null>(null)
@@ -174,19 +173,19 @@ const totalCost = ref('')
 const tradingCompanyOptions = [
   { value: 'company1', label: 'ООО "Торговая компания 1"' },
   { value: 'company2', label: 'ИП Иванов И.И.' },
-  { value: 'company3', label: 'ООО "Доставка+"' }
+  { value: 'company3', label: 'ООО "Доставка+"' },
 ]
 
 const deliveryMethodOptions = [
   { value: 'door', label: 'От двери до двери' },
   { value: 'warehouse', label: 'Со склада до склада' },
-  { value: 'pvz', label: 'До пункта выдачи' }
+  { value: 'pvz', label: 'До пункта выдачи' },
 ]
 
 const packageTypeOptions = [
   { value: 'box', label: 'Коробка' },
   { value: 'envelope', label: 'Конверт' },
-  { value: 'pallet', label: 'Паллета' }
+  { value: 'pallet', label: 'Паллета' },
 ]
 
 const packageFieldKeys: Array<keyof PackageFieldErrors> = ['weight', 'length', 'width', 'height']
@@ -195,7 +194,7 @@ const packageFieldLabels: Record<keyof PackageFieldErrors, string> = {
   weight: 'Вес',
   length: 'Длина',
   width: 'Ширина',
-  height: 'Высота'
+  height: 'Высота',
 }
 
 const resetFieldErrors = () => {
@@ -210,7 +209,7 @@ const formatCurrency = (value: number) =>
   new Intl.NumberFormat('ru-RU', {
     style: 'currency',
     currency: 'RUB',
-    maximumFractionDigits: 0
+    maximumFractionDigits: 0,
   }).format(value)
 
 const formatDeliveryDate = (date?: string) => {
@@ -219,7 +218,7 @@ const formatDeliveryDate = (date?: string) => {
   if (Number.isNaN(parsed.getTime())) return date
   return parsed.toLocaleDateString('ru-RU', {
     day: '2-digit',
-    month: 'long'
+    month: 'long',
   })
 }
 
@@ -278,7 +277,7 @@ const selectTariff = (tariff: TariffOption) => {
   orderAlert.value = null
   calculationAlert.value = {
     type: 'success',
-    message: `Выбран тариф «${tariff.tariff_name}»`
+    message: `Выбран тариф «${tariff.tariff_name}»`,
   }
 }
 
@@ -295,7 +294,7 @@ const searchFromCity = async (query: string) => {
   }
 
   if (citySearchTimeout) clearTimeout(citySearchTimeout)
-  
+
   citySearchTimeout = setTimeout(async () => {
     try {
       fromCityLoading.value = true
@@ -304,7 +303,7 @@ const searchFromCity = async (query: string) => {
       fromCitySuggestions.value = cities.map((city) => ({
         value: city.code.toString(),
         label: city.full_name,
-        data: city
+        data: city,
       }))
       console.log('Сформированные suggestions для "Откуда":', fromCitySuggestions.value)
     } catch (error) {
@@ -322,7 +321,7 @@ const searchToCity = async (query: string) => {
   }
 
   if (citySearchTimeout) clearTimeout(citySearchTimeout)
-  
+
   citySearchTimeout = setTimeout(async () => {
     try {
       toCityLoading.value = true
@@ -331,7 +330,7 @@ const searchToCity = async (query: string) => {
       toCitySuggestions.value = cities.map((city) => ({
         value: city.code.toString(),
         label: city.full_name,
-        data: city
+        data: city,
       }))
       console.log('Сформированные suggestions для "Куда":', toCitySuggestions.value)
     } catch (error) {
@@ -350,7 +349,7 @@ const searchFromAddress = async (query: string) => {
   }
 
   if (addressSearchTimeout) clearTimeout(addressSearchTimeout)
-  
+
   addressSearchTimeout = setTimeout(async () => {
     try {
       fromAddressLoading.value = true
@@ -358,7 +357,7 @@ const searchFromAddress = async (query: string) => {
       fromAddressSuggestions.value = response.suggestions.map((s: DadataSuggestion) => ({
         value: s.value,
         label: s.value,
-        data: s.data
+        data: s.data,
       }))
     } catch (error) {
       console.error('Ошибка поиска адреса:', error)
@@ -375,7 +374,7 @@ const searchToAddress = async (query: string) => {
   }
 
   if (addressSearchTimeout) clearTimeout(addressSearchTimeout)
-  
+
   addressSearchTimeout = setTimeout(async () => {
     try {
       toAddressLoading.value = true
@@ -383,7 +382,7 @@ const searchToAddress = async (query: string) => {
       toAddressSuggestions.value = response.suggestions.map((s: DadataSuggestion) => ({
         value: s.value,
         label: s.value,
-        data: s.data
+        data: s.data,
       }))
     } catch (error) {
       console.error('Ошибка поиска адреса:', error)
@@ -401,7 +400,7 @@ const searchCustomerName = async (query: string) => {
   }
 
   if (nameSearchTimeout) clearTimeout(nameSearchTimeout)
-  
+
   nameSearchTimeout = setTimeout(async () => {
     try {
       customerNameLoading.value = true
@@ -409,7 +408,7 @@ const searchCustomerName = async (query: string) => {
       customerNameSuggestions.value = response.suggestions.map((s: DadataSuggestion) => ({
         value: s.value,
         label: s.value,
-        data: s.data
+        data: s.data,
       }))
     } catch (error) {
       console.error('Ошибка поиска ФИО:', error)
@@ -426,7 +425,7 @@ const searchSellerName = async (query: string) => {
   }
 
   if (nameSearchTimeout) clearTimeout(nameSearchTimeout)
-  
+
   nameSearchTimeout = setTimeout(async () => {
     try {
       sellerNameLoading.value = true
@@ -434,7 +433,7 @@ const searchSellerName = async (query: string) => {
       sellerNameSuggestions.value = response.suggestions.map((s: DadataSuggestion) => ({
         value: s.value,
         label: s.value,
-        data: s.data
+        data: s.data,
       }))
     } catch (error) {
       console.error('Ошибка поиска ФИО:', error)
@@ -455,7 +454,7 @@ const handleFromCitySelect = (suggestion: { value: string; label: string; data?:
     console.log('Сохранены данные города отправления:', {
       code: fromCityCode.value,
       city: fromCityName.value,
-      country: fromCountryCode.value
+      country: fromCountryCode.value,
     })
     formErrors.fromCity = ''
     calculationAlert.value = null
@@ -476,7 +475,7 @@ const handleToCitySelect = (suggestion: { value: string; label: string; data?: a
     console.log('Сохранены данные города получения:', {
       code: toCityCode.value,
       city: toCityName.value,
-      country: toCountryCode.value
+      country: toCountryCode.value,
     })
     formErrors.toCity = ''
     calculationAlert.value = null
@@ -580,7 +579,7 @@ watch(toPostalCode, () => {
 watch(estimatedCost, () => {
   if (selectedTariffCode.value === null) return
   const selected = tariffResults.value.find(
-    (tariff) => tariff.tariff_code === selectedTariffCode.value
+    (tariff) => tariff.tariff_code === selectedTariffCode.value,
   )
   if (selected) {
     updateTotals(selected.delivery_sum)
@@ -680,7 +679,7 @@ const calculateCost = async () => {
   })
 
   const validPackages = packages.value.filter((_, index) =>
-    Object.values(packageErrors.value[index]).every((message) => !message)
+    Object.values(packageErrors.value[index]).every((message) => !message),
   )
 
   if (validPackages.length === 0) {
@@ -690,7 +689,7 @@ const calculateCost = async () => {
   if (hasError) {
     calculationAlert.value = {
       type: 'error',
-      message: 'Пожалуйста, исправьте выделенные поля и повторите попытку.'
+      message: 'Пожалуйста, исправьте выделенные поля и повторите попытку.',
     }
     clearCalculationResults()
     return
@@ -700,7 +699,7 @@ const calculateCost = async () => {
     weight: Math.round(Number(p.weight)),
     length: Math.round(Number(p.length)),
     width: Math.round(Number(p.width)),
-    height: Math.round(Number(p.height))
+    height: Math.round(Number(p.height)),
   }))
 
   // Формируем дату в формате, который понимает CDEK (без миллисекунд, с оффсетом)
@@ -713,7 +712,7 @@ const calculateCost = async () => {
     country_code: fromCountryCode.value || undefined,
     city: normalizedFromCity,
     postal_code: normalizedFromPostal,
-    address: fromAddress.value || undefined
+    address: fromAddress.value || undefined,
   }
 
   const toLocationPayload = {
@@ -721,7 +720,7 @@ const calculateCost = async () => {
     country_code: toCountryCode.value || undefined,
     city: normalizedToCity,
     postal_code: normalizedToPostal,
-    address: toAddress.value || undefined
+    address: toAddress.value || undefined,
   }
 
   const requestData = {
@@ -730,16 +729,16 @@ const calculateCost = async () => {
     currency: 643,
     lang: 'rus',
     from_location: Object.fromEntries(
-      Object.entries(fromLocationPayload).filter(([, value]) =>
-        value !== undefined && value !== null && `${value}`.trim() !== ''
-      )
+      Object.entries(fromLocationPayload).filter(
+        ([, value]) => value !== undefined && value !== null && `${value}`.trim() !== '',
+      ),
     ),
     to_location: Object.fromEntries(
-      Object.entries(toLocationPayload).filter(([, value]) =>
-        value !== undefined && value !== null && `${value}`.trim() !== ''
-      )
+      Object.entries(toLocationPayload).filter(
+        ([, value]) => value !== undefined && value !== null && `${value}`.trim() !== '',
+      ),
     ),
-    packages: packageItems
+    packages: packageItems,
   }
 
   try {
@@ -750,7 +749,7 @@ const calculateCost = async () => {
       clearCalculationResults()
       calculationAlert.value = {
         type: 'error',
-        message: 'Не удалось подобрать тарифы для указанных параметров.'
+        message: 'Не удалось подобрать тарифы для указанных параметров.',
       }
       return
     }
@@ -760,14 +759,14 @@ const calculateCost = async () => {
     updateTotals(firstTariff.delivery_sum)
     calculationAlert.value = {
       type: 'success',
-      message: `Найдено тарифов: ${tariffs.length}`
+      message: `Найдено тарифов: ${tariffs.length}`,
     }
   } catch (error: any) {
     console.error('Ошибка расчёта:', error)
     clearCalculationResults()
     calculationAlert.value = {
       type: 'error',
-      message: error?.response?.data?.message || error.message || 'Не удалось рассчитать стоимость'
+      message: error?.response?.data?.message || error.message || 'Не удалось рассчитать стоимость',
     }
   }
 }
@@ -806,7 +805,7 @@ const createOrder = async () => {
   if (validationMessages.length) {
     orderAlert.value = {
       type: 'error',
-      message: validationMessages.join(' ')
+      message: validationMessages.join(' '),
     }
     return
   }
@@ -818,25 +817,25 @@ const createOrder = async () => {
       tariff_code: selectedTariffCode.value,
       sender: {
         name: sellerName.value || 'Отправитель',
-        phones: [{ number: sellerPhone.value || '79000000000' }]
+        phones: [{ number: sellerPhone.value || '79000000000' }],
       },
       recipient: {
         name: customerName.value,
-        phones: [{ number: customerPhone.value }]
+        phones: [{ number: customerPhone.value }],
       },
       from_location: {
         code: fromCityCode.value || undefined,
         country_code: fromCountryCode.value || undefined,
         city: fromCityName.value || undefined,
         postal_code: fromPostalCode.value || undefined,
-        address: fromAddress.value || undefined
+        address: fromAddress.value || undefined,
       },
       to_location: {
         code: toCityCode.value || undefined,
         country_code: toCountryCode.value || undefined,
         city: toCityName.value || undefined,
         postal_code: toPostalCode.value || undefined,
-        address: toAddress.value || undefined
+        address: toAddress.value || undefined,
       },
       packages: packages.value
         .filter((p) => p.weight && p.length && p.width && p.height)
@@ -853,10 +852,10 @@ const createOrder = async () => {
               payment: { value: parseFloat(estimatedCost.value || '0') },
               cost: parseFloat(estimatedCost.value || '0'),
               weight: parseInt(p.weight, 10),
-              amount: 1
-            }
-          ]
-        }))
+              amount: 1,
+            },
+          ],
+        })),
     }
 
     const result = await cdekService.createOrder(orderData)
@@ -864,9 +863,7 @@ const createOrder = async () => {
 
     orderAlert.value = {
       type: 'success',
-      message: orderUuid
-        ? `Заказ успешно создан! UUID: ${orderUuid}`
-        : 'Заказ успешно создан!'
+      message: orderUuid ? `Заказ успешно создан! UUID: ${orderUuid}` : 'Заказ успешно создан!',
     }
 
     resetForm()
@@ -874,7 +871,7 @@ const createOrder = async () => {
     console.error('Ошибка создания заказа:', error)
     orderAlert.value = {
       type: 'error',
-      message: error?.response?.data?.message || error.message || 'Не удалось создать заказ'
+      message: error?.response?.data?.message || error.message || 'Не удалось создать заказ',
     }
   }
 }
@@ -925,12 +922,6 @@ const resetForm = () => {
     <h1>Оформить заказ</h1>
     <section class="dropdawn-section">
       <Dropdown
-        :options="[
-          { value: 'СДЭК', label: 'СДЭК' },
-          { value: 'Авито', label: 'Авито' },
-          { value: 'Почта России', label: 'Почта России' },
-        ]"
-        v-model="TK"
         v-model="tradingCompany"
         :options="tradingCompanyOptions"
         placeholder="Торговая компания"
@@ -938,12 +929,6 @@ const resetForm = () => {
         height="54px"
       />
       <Dropdown
-        :options="[
-          { value: 'В ПВЗ', label: 'В ПВЗ' },
-          { value: 'В постамат', label: 'В постамат' },
-          { value: 'Курьером', label: 'Курьером' },
-        ]"
-        v-model="deliveryMethod"
         v-model="deliveryMethod"
         :options="deliveryMethodOptions"
         placeholder="Способ доставки"
@@ -955,17 +940,15 @@ const resetForm = () => {
 
     <!-- Адрес ОТКУДА -->
     <section class="address-section">
-      <h4 class="section-title">Откуда</h4>
       <section class="required-address-section">
         <div class="required-address-inputs">
-          <Input height="54px" width="308px" placeholder="Город" :disabled="!isDeliveryMethod" />
-          <Input height="54px" width="308px" placeholder="Адрес" :disabled="!isDeliveryMethod" />
+          <h4 class="section-title">Откуда</h4>
           <Autocomplete
             v-model="fromCity"
             :suggestions="fromCitySuggestions"
             :loading="fromCityLoading"
             placeholder="Город отправления"
-            width="308px"
+            width="392px"
             height="54px"
             :error="formErrors.fromCity"
             @select="handleFromCitySelect"
@@ -975,7 +958,7 @@ const resetForm = () => {
             :suggestions="fromAddressSuggestions"
             :loading="fromAddressLoading"
             placeholder="Адрес отправления"
-            width="308px"
+            width="392px"
             height="54px"
             @select="handleFromAddressSelect"
           />
@@ -1015,7 +998,7 @@ const resetForm = () => {
               <button class="close-btn" @click="isMapModalOpen = false">×</button>
             </div>
             <div class="list">
-              <Input height="54px" width="100%" placeholder="Найти" border="2px solid #A0B7AB" />
+              <Input height="54px" width="100%" placeholder="Найти" />
               <PVZCard PVZName="СДЭК" address="Улица Мира" />
             </div>
           </div>
@@ -1023,13 +1006,10 @@ const resetForm = () => {
       </div>
 
       <section class="extra-address-section">
-        <Input height="54px" width="308px" placeholder="Квартира" :disabled="!isCourier" />
-        <Input height="54px" width="308px" placeholder="Индекс" :disabled="!isCourier" />
-        <Input v-model="fromFlat" height="54px" width="308px" placeholder="Квартира/офис" />
         <Input
           v-model="fromPostalCode"
           height="54px"
-          width="308px"
+          width="392px"
           placeholder="Индекс"
           :error="formErrors.fromPostalCode"
         />
@@ -1038,15 +1018,15 @@ const resetForm = () => {
 
     <!-- Адрес КУДА -->
     <section class="address-section">
-      <h4 class="section-title">Куда</h4>
       <section class="required-address-section">
         <div class="required-address-inputs">
+          <h4 class="section-title">Куда</h4>
           <Autocomplete
             v-model="toCity"
             :suggestions="toCitySuggestions"
             :loading="toCityLoading"
             placeholder="Город получателя"
-            width="308px"
+            width="392px"
             height="54px"
             :error="formErrors.toCity"
             @select="handleToCitySelect"
@@ -1056,13 +1036,13 @@ const resetForm = () => {
             :suggestions="toAddressSuggestions"
             :loading="toAddressLoading"
             placeholder="Адрес получателя"
-            width="308px"
+            width="392px"
             height="54px"
             @select="handleToAddressSelect"
           />
         </div>
         <div class="map">
-          <p>Указать на карте</p>
+          <p @click="isMapModalOpen = true">Указать на карте</p>
           <svg
             width="19"
             height="19"
@@ -1086,11 +1066,10 @@ const resetForm = () => {
         </div>
       </section>
       <section class="extra-address-section">
-        <Input v-model="toFlat" height="54px" width="308px" placeholder="Квартира/офис" />
         <Input
           v-model="toPostalCode"
           height="54px"
-          width="308px"
+          width="392px"
           placeholder="Индекс"
           :error="formErrors.toPostalCode"
         />
@@ -1099,7 +1078,7 @@ const resetForm = () => {
 
     <section class="customer-seller-section">
       <section class="customer-section">
-        <h4>Данные заказчика</h4>
+        <h4 class="customer-seller-h4">Данные заказчика</h4>
         <Autocomplete
           v-model="customerName"
           :suggestions="customerNameSuggestions"
@@ -1117,7 +1096,7 @@ const resetForm = () => {
         />
       </section>
       <section class="seller-section">
-        <h4>Данные продавца</h4>
+        <h4 class="customer-seller-h4">Данные продавца</h4>
         <Autocomplete
           v-model="sellerName"
           :suggestions="sellerNameSuggestions"
@@ -1131,12 +1110,6 @@ const resetForm = () => {
     </section>
     <section class="values-section">
       <Dropdown
-        :options="[
-          { value: 'option1', label: 'Option 1' },
-          { value: 'option2', label: 'Option 2' },
-          { value: 'option3', label: 'Option 3' },
-        ]"
-        v-model="attachmentType"
         v-model="packages[0].type"
         :options="packageTypeOptions"
         placeholder="Тип вложения"
@@ -1146,7 +1119,7 @@ const resetForm = () => {
       <Input
         v-model="packages[0].weight"
         height="54px"
-        width="234px"
+        width="218px"
         placeholder="Вес(гр)"
         :error="packageErrors[0]?.weight"
         @update:modelValue="() => clearPackageError(0, 'weight')"
@@ -1154,7 +1127,7 @@ const resetForm = () => {
       <Input
         v-model="packages[0].length"
         height="54px"
-        width="234px"
+        width="218px"
         placeholder="Длина(см)"
         :error="packageErrors[0]?.length"
         @update:modelValue="() => clearPackageError(0, 'length')"
@@ -1162,7 +1135,7 @@ const resetForm = () => {
       <Input
         v-model="packages[0].width"
         height="54px"
-        width="234px"
+        width="218px"
         placeholder="Ширина(см)"
         :error="packageErrors[0]?.width"
         @update:modelValue="() => clearPackageError(0, 'width')"
@@ -1170,27 +1143,24 @@ const resetForm = () => {
       <Input
         v-model="packages[0].height"
         height="54px"
-        width="234px"
+        width="218px"
         placeholder="Высота(см)"
         :error="packageErrors[0]?.height"
         @update:modelValue="() => clearPackageError(0, 'height')"
       />
-      <div class="plus" @click="addPackage">
-        <svg
-          width="39"
-          height="25"
-          viewBox="0 0 39 25"
-          fill="none"
-          xmlns="http://www.w3.org/2000/svg"
-        >
-          <line x1="12" y1="11.5" x2="27" y2="11.5" stroke="black" />
-          <line x1="19.5" y1="4" x2="19.5" y2="19" stroke="black" />
-        </svg>
+      <div class="plus-btn-container">
+        <button class="plus-btn" @click="addPackage">Добавить</button>
       </div>
     </section>
     <section class="proccesing-section">
       <section class="first-proccesing-section">
-        <Input v-model="estimatedCost" height="54px" width="308px" placeholder="Оценочная стоимость" disabled />
+        <Input
+          v-model="estimatedCost"
+          height="54px"
+          width="308px"
+          placeholder="Оценочная стоимость"
+          disabled
+        />
         <button class="submit-proccessing-btn" @click="calculateCost">Рассчитать</button>
       </section>
       <section class="second-proccesing-section">
@@ -1229,11 +1199,7 @@ const resetForm = () => {
               Доставка: {{ getDeliveryDateLabel(tariff.delivery_date_range) }}
             </span>
           </div>
-          <button
-            type="button"
-            class="tariff-card__select"
-            @click.stop="selectTariff(tariff)"
-          >
+          <button type="button" class="tariff-card__select" @click.stop="selectTariff(tariff)">
             {{ tariff.tariff_code === selectedTariffCode ? 'Выбран' : 'Выбрать' }}
           </button>
         </article>
@@ -1261,8 +1227,7 @@ const resetForm = () => {
   align-items: center;
   justify-content: flex-start;
   width: 100dvw;
-  height: calc(100dvh - 82px);
-  overflow: scroll;
+  height: fit-content;
 }
 
 .toMain-btn-container {
@@ -1419,7 +1384,7 @@ const resetForm = () => {
   gap: 10px;
 }
 
-h4 {
+.customer-seller-h4 {
   margin-left: 30px;
 }
 
@@ -1429,11 +1394,27 @@ h4 {
   gap: 10px;
 }
 
-.plus {
+.plus-btn-container {
+  width: 100px;
+  height: 54px;
   display: flex;
   align-items: center;
   justify-content: center;
+}
+
+.plus-btn {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 100px;
+  height: 54px;
+  background-color: #344e41;
+  border: none;
+  border-radius: 5px;
+  color: white;
+  font-size: 16px;
   cursor: pointer;
+  padding: 0px 12px;
 }
 
 .proccesing-section {
@@ -1467,7 +1448,10 @@ h4 {
 }
 
 .section-title {
-  margin-top: 12px;
+  width: 52px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
 }
 
 .confirmation-section {

@@ -1,5 +1,5 @@
 <template>
-  <header class="topbar">
+  <header class="topbar header-position">
     <div class="topbar__inner">
       <a class="brand" href="/">
         <span class="brand__text">BEGUN</span><span class="brand__text">OK</span

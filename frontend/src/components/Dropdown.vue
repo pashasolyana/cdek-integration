@@ -47,7 +47,7 @@ const selectOption = (option: { value: string; label: string }) => {
     class="dropdown"
     :class="{ disabled: isDropdownEnabled }"
     @click="toggle"
-    :style="{ width: width, minHeight: height }"
+    :style="{ width: width, minHeight: height, border: isOpen ? '1px solid #344E41' : 'none' }"
   >
     <div class="dropdown-selected">
       <span :class="{ placeholder: !selectedValue }">
@@ -83,6 +83,7 @@ const selectOption = (option: { value: string; label: string }) => {
   user-select: none;
   cursor: pointer;
   transition: opacity 0.2s ease;
+  border-radius: 5px;
 }
 
 .dropdown.disabled {

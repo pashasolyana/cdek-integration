@@ -1,5 +1,5 @@
 <template>
-  <footer class="bottombar">
+  <footer class="bottombar footer-position">
     <div class="text-container">
       <p>Поддержка</p>
       <p>Наши сервисы</p>
@@ -28,5 +28,10 @@
 
 .text-container {
   text-align: left;
+}
+
+.footer-position {
+  position: static;
+  bottom: 0px;
 }
 </style>

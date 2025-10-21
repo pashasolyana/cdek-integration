@@ -205,6 +205,8 @@ watch(() => props.suggestions, () => {
   position: relative;
   display: flex;
   flex-direction: column;
+  background-color: white;
+  border-radius: 5px;
 }
 
 .input-container {
