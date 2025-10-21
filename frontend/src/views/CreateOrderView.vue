@@ -1108,48 +1108,54 @@ const resetForm = () => {
         <Input v-model="sellerPhone" height="54px" width="625px" placeholder="Телефон" type="tel" />
       </section>
     </section>
-    <section class="values-section">
-      <Dropdown
-        v-model="packages[0].type"
-        :options="packageTypeOptions"
-        placeholder="Тип вложения"
-        width="234px"
-        height="54px"
-      />
-      <Input
-        v-model="packages[0].weight"
-        height="54px"
-        width="218px"
-        placeholder="Вес(гр)"
-        :error="packageErrors[0]?.weight"
-        @update:modelValue="() => clearPackageError(0, 'weight')"
-      />
-      <Input
-        v-model="packages[0].length"
-        height="54px"
-        width="218px"
-        placeholder="Длина(см)"
-        :error="packageErrors[0]?.length"
-        @update:modelValue="() => clearPackageError(0, 'length')"
-      />
-      <Input
-        v-model="packages[0].width"
-        height="54px"
-        width="218px"
-        placeholder="Ширина(см)"
-        :error="packageErrors[0]?.width"
-        @update:modelValue="() => clearPackageError(0, 'width')"
-      />
-      <Input
-        v-model="packages[0].height"
-        height="54px"
-        width="218px"
-        placeholder="Высота(см)"
-        :error="packageErrors[0]?.height"
-        @update:modelValue="() => clearPackageError(0, 'height')"
-      />
+    <section class="packages-section">
+      <div class="packages">
+        <div v-for="(pkg, index) in packages" :key="index" class="package">
+          <Dropdown
+            v-model="pkg.type"
+            :options="packageTypeOptions"
+            placeholder="Тип вложения"
+            width="234px"
+            height="54px"
+          />
+          <Input
+            v-model="pkg.weight"
+            height="54px"
+            width="202px"
+            placeholder="Вес(гр)"
+            :error="packageErrors[index]?.weight"
+            @update:modelValue="() => clearPackageError(0, 'weight')"
+          />
+          <Input
+            v-model="pkg.length"
+            height="54px"
+            width="202px"
+            placeholder="Длина(см)"
+            :error="packageErrors[index]?.length"
+            @update:modelValue="() => clearPackageError(0, 'length')"
+          />
+          <Input
+            v-model="pkg.width"
+            height="54px"
+            width="202px"
+            placeholder="Ширина(см)"
+            :error="packageErrors[index]?.width"
+            @update:modelValue="() => clearPackageError(0, 'width')"
+          />
+          <Input
+            v-model="pkg.height"
+            height="54px"
+            width="202px"
+            placeholder="Высота(см)"
+            :error="packageErrors[index]?.height"
+            @update:modelValue="() => clearPackageError(0, 'height')"
+          />
+          <!-- Кнопка удаления пакета -->
+          <button v-if="index > 0" class="remove-btn" @click="removePackage(index)">Удалить</button>
+        </div>
+      </div>
       <div class="plus-btn-container">
-        <button class="plus-btn" @click="addPackage">Добавить</button>
+        <button class="plus-btn" @click="addPackage">Добавить посылку</button>
       </div>
     </section>
     <section class="proccesing-section">
@@ -1388,14 +1394,26 @@ const resetForm = () => {
   margin-left: 30px;
 }
 
-.values-section {
+.packages-section {
   margin-top: 20px;
   display: flex;
   gap: 10px;
 }
 
+.packages {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+}
+
+.package {
+  display: flex;
+  gap: 10px;
+  align-items: center;
+}
+
 .plus-btn-container {
-  width: 100px;
+  width: 170px;
   height: 54px;
   display: flex;
   align-items: center;
@@ -1406,7 +1424,7 @@ const resetForm = () => {
   display: flex;
   align-items: center;
   justify-content: center;
-  width: 100px;
+  width: 100%;
   height: 54px;
   background-color: #344e41;
   border: none;

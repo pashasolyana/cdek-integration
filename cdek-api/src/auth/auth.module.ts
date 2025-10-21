@@ -10,6 +10,8 @@ import { JwtStrategy } from './strategies/jwt.strategy';
 import { JwtAuthGuard } from './guards/jwt-auth.guard';
 import { PrismaModule } from '../prisma/prisma.module';
 
+type MsLike = `${number}${'ms' | 's' | 'm' | 'h' | 'd' | 'w' | 'y'}`;
+
 @Global()
 @Module({
   imports: [
@@ -17,28 +19,23 @@ import { PrismaModule } from '../prisma/prisma.module';
     PassportModule.register({ defaultStrategy: 'jwt' }),
     JwtModule.registerAsync({
       imports: [ConfigModule],
-      useFactory: async (configService: ConfigService) => ({
-        secret: configService.get<string>('JWT_SECRET'),
-        signOptions: {
-          expiresIn: configService.get<string>('JWT_EXPIRES_IN', '15m'),
-        },
-      }),
       inject: [ConfigService],
+      useFactory: async (configService: ConfigService) => {
+        const raw = configService.get<string>('JWT_EXPIRES_IN', '15m')!;
+        // Если только цифры — трактуем как секунды (число).
+        const expiresIn: number | MsLike = /^\d+$/.test(raw)
+          ? Number(raw)
+          : (raw as MsLike);
+
+        return {
+          secret: configService.get<string>('JWT_SECRET')!,
+          signOptions: { expiresIn },
+        };
+      },
     }),
   ],
   controllers: [AuthController],
-  providers: [
-    AuthService,
-    TokenService,
-    JwtStrategy,
-    JwtAuthGuard,
-  ],
-  exports: [
-    AuthService,
-    TokenService,
-    JwtAuthGuard,
-    JwtModule,
-    PassportModule,
-  ],
+  providers: [AuthService, TokenService, JwtStrategy, JwtAuthGuard],
+  exports: [AuthService, TokenService, JwtAuthGuard, JwtModule, PassportModule],
 })
 export class AuthModule {}
