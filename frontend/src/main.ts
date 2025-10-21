@@ -1,4 +1,5 @@
 import './assets/main.css'
+import 'vue-yandex-maps/css'
 import { vMaska } from 'maska/vue'
 
 import { createApp } from 'vue'
@@ -29,9 +30,8 @@ const vuetify = createVuetify({
 app.use(vuetify)
 
 app.use(createYmaps({
-  apikey: '6e024797-2e50-41d4-ba36-56a10c025f1a',
+  apikey: '5db945dc-0d89-4cff-a081-f989357174cc',
   lang: 'ru_RU',
-  version: '3.0',
 }));
 
 app.mount('#app')

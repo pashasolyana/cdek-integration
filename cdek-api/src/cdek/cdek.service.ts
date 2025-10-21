@@ -1,11 +1,28 @@
 import { Injectable, Logger, HttpException, HttpStatus, OnModuleInit } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
 import axios, { AxiosInstance, AxiosRequestConfig } from 'axios';
+import { promises as fs, existsSync } from 'fs';
+import * as path from 'path';
+import { createHash } from 'crypto';
 import { PrismaService } from '../prisma/prisma.service';
 import { CdekAuthDto, CdekTokenResponse } from './dto/auth.dto';
 import { CalcTariffListRequestDto, CalcTariffListResponseDto } from './dto/calculator.dto';
 import { Prisma, CdekOfficeType } from '@prisma/client';
 import { CreateCdekOrderDto } from './dto/create-cdek-order.dto';
+import { PrintReceiptRequestDto, PrintBarcodeRequestDto, PrintJobKind, PrintJobResponseDto, PrintOrderDto } from './dto/print.dto';
+import { PrintWaybillRequestDto, WaybillDto } from './dto/print-waybill.dto';
+import { PrintBarcodeRequestDto as PrintBarcodeRequestDtoV2, BarcodeDto } from './dto/print-barcode.dto';
+
+interface StoredPrintJobMeta extends PrintJobResponseDto {
+  payload: Record<string, any>;
+  statuses?: Array<Record<string, any>>;
+  contentType?: string | null;
+}
+
+interface ResolvedPrintJobFile {
+  meta: StoredPrintJobMeta;
+  absolutePath: string;
+}
 @Injectable()
 export class CdekService implements OnModuleInit {
  
@@ -634,9 +651,10 @@ async syncDeliveryPoints(params: any = {}) {
   let total = 0;
   const pageSize = 1000; // размер страницы API (максимум разумный)
   const batchSize = 100; // размер пакета для сохранения в БД
+  const maxRecords = params.maxRecords || 200000; // ограничение на количество записей (по умолчанию 200к)
 
   this.logger.log('🚀 Начало синхронизации пунктов выдачи CDEK');
-  this.logger.log(`⚙️  Настройки: размер страницы API=${pageSize}, размер пакета БД=${batchSize}`);
+  this.logger.log(`⚙️  Настройки: размер страницы API=${pageSize}, размер пакета БД=${batchSize}, лимит записей=${maxRecords}`);
   
   // Очищаем все данные
   this.logger.log('🗑️  Этап 1/2: Очистка существующих данных...');
@@ -675,14 +693,23 @@ async syncDeliveryPoints(params: any = {}) {
     const pageDuration = ((Date.now() - pageStart) / 1000).toFixed(2);
     this.logger.log(`  ✓ Загружено ${apiData.length} записей за ${pageDuration}с`);
     
-    // Сразу сохраняем эту страницу пакетами
-    this.logger.log(`  💾 Сохранение страницы ${page + 1} в БД пакетами по ${batchSize}...`);
-    const totalBatches = Math.ceil(apiData.length / batchSize);
+    // Обрезаем данные, если превышаем лимит (ПЕРЕД сохранением!)
+    const remainingSlots = maxRecords - total;
+    if (remainingSlots <= 0) {
+      this.logger.log(`  ⚠️  Достигнут лимит записей (${maxRecords}) - остановка загрузки`);
+      break;
+    }
     
-    for (let i = 0; i < apiData.length; i += batchSize) {
+    const dataToSave = remainingSlots < apiData.length ? apiData.slice(0, remainingSlots) : apiData;
+    const totalBatches = Math.ceil(dataToSave.length / batchSize);
+    
+    // Сразу сохраняем эту страницу пакетами
+    this.logger.log(`  💾 Сохранение страницы ${page + 1} в БД пакетами по ${batchSize} (будет сохранено: ${dataToSave.length})...`);
+    
+    for (let i = 0; i < dataToSave.length; i += batchSize) {
       const batchNumber = Math.floor(i / batchSize) + 1;
       const batchStart = Date.now();
-      const batch = apiData.slice(i, i + batchSize);
+      const batch = dataToSave.slice(i, i + batchSize);
       
       await this.prismaService.$transaction(async (tx) => {
         const deliveryPointsData: any[] = [];
@@ -704,13 +731,13 @@ async syncDeliveryPoints(params: any = {}) {
           dimensionsData.push(...ch.dimensions);
         }
 
-        // Массовые вставки
-        if (deliveryPointsData.length) await tx.cdekDeliveryPoint.createMany({ data: deliveryPointsData });
-        if (phonesData.length)         await tx.cdekDPPhone.createMany({ data: phonesData });
-        if (imagesData.length)         await tx.cdekDPImage.createMany({ data: imagesData });
-        if (workTimesData.length)      await tx.cdekDPWorkTime.createMany({ data: workTimesData });
-        if (exceptionsData.length)     await tx.cdekDPWorkTimeException.createMany({ data: exceptionsData });
-        if (dimensionsData.length)     await tx.cdekDPDimension.createMany({ data: dimensionsData });
+        // Массовые вставки (skipDuplicates для избежания конфликтов)
+        if (deliveryPointsData.length) await tx.cdekDeliveryPoint.createMany({ data: deliveryPointsData, skipDuplicates: true });
+        if (phonesData.length)         await tx.cdekDPPhone.createMany({ data: phonesData, skipDuplicates: true });
+        if (imagesData.length)         await tx.cdekDPImage.createMany({ data: imagesData, skipDuplicates: true });
+        if (workTimesData.length)      await tx.cdekDPWorkTime.createMany({ data: workTimesData, skipDuplicates: true });
+        if (exceptionsData.length)     await tx.cdekDPWorkTimeException.createMany({ data: exceptionsData, skipDuplicates: true });
+        if (dimensionsData.length)     await tx.cdekDPDimension.createMany({ data: dimensionsData, skipDuplicates: true });
       });
 
       total += batch.length;
@@ -722,6 +749,12 @@ async syncDeliveryPoints(params: any = {}) {
     this.logger.log(`  ✅ Страница ${page + 1} полностью обработана за ${pageFullDuration}с`);
     
     page += 1;
+    
+    // Если достигли лимита, выходим
+    if (total >= maxRecords) {
+      this.logger.log(`  ⚠️  Достигнут лимит записей (${maxRecords}) - остановка`);
+      break;
+    }
     
     // Небольшая пауза между страницами
     await new Promise(r => setTimeout(r, 150));
@@ -761,11 +794,17 @@ async listFromDb(opts: {
     { city: { contains: q, mode: 'insensitive' } },
   ];
   if ([lat_min,lat_max,lon_min,lon_max].every(v => typeof v === 'number')) {
+    // Автоматически меняем местами min/max, если перепутаны
+    const actualLatMin = Math.min(lat_min!, lat_max!);
+    const actualLatMax = Math.max(lat_min!, lat_max!);
+    const actualLonMin = Math.min(lon_min!, lon_max!);
+    const actualLonMax = Math.max(lon_min!, lon_max!);
+    
     where.AND = [
-      { latitude:  { gte: lat_min } },
-      { latitude:  { lte: lat_max } },
-      { longitude: { gte: lon_min } },
-      { longitude: { lte: lon_max } },
+      { latitude:  { gte: actualLatMin } },
+      { latitude:  { lte: actualLatMax } },
+      { longitude: { gte: actualLonMin } },
+      { longitude: { lte: actualLonMax } },
     ];
   }
 
@@ -1016,6 +1055,14 @@ const apiResponse: any = await this.post('/v2/orders', payload, headers);
       return order;
     });
 
+    // 4) Запускаем фоновое обновление информации о заказе (не блокируем ответ)
+    if (entityUuid) {
+      // Запускаем асинхронное обновление в фоне
+      this.scheduleOrderUpdate(savedOrder.id, entityUuid).catch(err => {
+        this.logger.error(`Фоновое обновление заказа ${entityUuid} завершилось с ошибкой:`, err.message);
+      });
+    }
+
     return {
       ...apiResponse,
       local: {
@@ -1026,68 +1073,469 @@ const apiResponse: any = await this.post('/v2/orders', payload, headers);
     };
   }
 
-/**
- * Быстрый геттер: заказ из БД по uuid (для внутренней диагностики/отладки UI)
- */
-async getOrderFromDbByUuid(uuid: string) {
-  return this.prismaService.cdekOrder.findFirst({
-    where: { uuid },
-    include: {
-      packages: { include: { items: true } },
-      requests: true,
-      relatedEntities: true,
-    },
-  });
-}
-
-/**
- * Быстрый геттер: заказ из БД по локальному ID
- */
-async getOrderFromDbById(id: number) {
-  return this.prismaService.cdekOrder.findUnique({
-    where: { id },
-    include: {
-      packages: { include: { items: true } },
-      requests: true,
-      relatedEntities: true,
-    },
-  });
-}
-
-// ------- МАЛЕНЬКИЕ ХЕЛПЕРЫ ВНИЗ СЕРВИСА -------
-
-/** Приводит значение к number | null */
-private _n(v: any): number | null {
-  if (v === null || v === undefined || v === '') return null;
-  const n = Number(v);
-  return Number.isFinite(n) ? n : null;
-}
-
-private _j(v: any): Prisma.InputJsonValue | undefined {
-  return v === null || v === undefined ? undefined : (v as Prisma.InputJsonValue);
-}
-
-private _cleanPayload<T = any>(obj: T): T {
-  if (obj === null || obj === undefined) return obj as T;
-  if (Array.isArray(obj)) {
-    return obj
-      .map((v) => this._cleanPayload(v))
-      .filter((v) => v !== undefined) as any;
-  }
-  if (typeof obj === 'object') {
-    const out: any = {};
-    for (const [k, v] of Object.entries(obj)) {
-      const cleaned = this._cleanPayload(v);
-      // удаляем пустые строки, null, undefined
-      if (
-        cleaned === undefined ||
-        cleaned === null ||
-        (typeof cleaned === 'string' && cleaned.trim() === '')
-      ) continue;
-      out[k] = cleaned;
+  /**
+   * Фоновое обновление информации о заказе с retry-логикой
+   * Проверяет заказ через 5, 10, 20 и 30 секунд после создания
+   */
+  private async scheduleOrderUpdate(orderId: number, uuid: string) {
+  const delays = [5000, 10000, 20000, 30000]; // 5, 10, 20, 30 секунд
+  const maxAttempts = 4;
+  
+  for (let attempt = 0; attempt < maxAttempts; attempt++) {
+    const delay = delays[attempt];
+    
+    // Ждем указанное время
+    await new Promise(resolve => setTimeout(resolve, delay));
+    
+    try {
+      this.logger.log(`[Попытка ${attempt + 1}/${maxAttempts}] Обновление заказа ${uuid} через ${delay/1000}с...`);
+      
+      // Получаем актуальную информацию из CDEK API
+      const fullOrderInfo = await this.getOrder(uuid);
+      const cdekNumber = fullOrderInfo?.entity?.cdek_number;
+      const statuses = Array.isArray(fullOrderInfo?.entity?.statuses) 
+        ? fullOrderInfo.entity.statuses 
+        : [];
+      
+      // Если получили cdek_number - обновляем БД и завершаем попытки
+      if (cdekNumber) {
+        await this.prismaService.cdekOrder.update({
+          where: { id: orderId },
+          data: {
+            cdekNumber: cdekNumber,
+            rawResponse: fullOrderInfo as unknown as Prisma.InputJsonValue,
+            requestState: fullOrderInfo?.requests?.[0]?.state ?? undefined,
+            statusNote: statuses[0]?.code ?? undefined,
+          },
+        });
+        
+        this.logger.log(`✅ Заказ ${uuid} успешно обновлен: cdek_number=${cdekNumber}, статусов=${statuses.length}`);
+        return; // Успешно получили cdek_number, выходим
+      } else {
+        this.logger.warn(`⏳ Попытка ${attempt + 1}: cdek_number еще не присвоен для заказа ${uuid}`);
+      }
+    } catch (error) {
+      this.logger.error(`❌ Ошибка при обновлении заказа ${uuid} (попытка ${attempt + 1}):`, error.message);
     }
-    return out;
   }
-  return obj as any;
-}
+  
+  this.logger.warn(`⚠️  Заказ ${uuid} не получил cdek_number после ${maxAttempts} попыток`);
+  }
+
+  /**
+   * Быстрый геттер: заказ из БД по uuid (для внутренней диагностики/отладки UI)
+   */
+  async getOrderFromDbByUuid(uuid: string) {
+    return this.prismaService.cdekOrder.findFirst({
+      where: { uuid },
+      include: {
+        packages: { include: { items: true } },
+        requests: true,
+        relatedEntities: true,
+      },
+    });
+  }
+
+  /**
+   * Быстрый геттер: заказ из БД по локальному ID
+   */
+  async getOrderFromDbById(id: number) {
+    return this.prismaService.cdekOrder.findUnique({
+      where: { id },
+      include: {
+        packages: { include: { items: true } },
+        requests: true,
+        relatedEntities: true,
+      },
+    });
+  }
+
+  /**
+   * Получение списка заказов из БД с пагинацией и фильтрацией
+   */
+  async getOrdersList(params: {
+    limit?: number;
+    offset?: number;
+    dateFrom?: Date;
+    dateTo?: Date;
+    tariffCode?: number;
+  } = {}) {
+    const { limit = 50, offset = 0, dateFrom, dateTo, tariffCode } = params;
+
+    const where: any = {};
+    
+    if (dateFrom || dateTo) {
+      where.createdAt = {};
+      if (dateFrom) where.createdAt.gte = dateFrom;
+      if (dateTo) {
+        // Устанавливаем конец дня для dateTo
+        const endOfDay = new Date(dateTo);
+        endOfDay.setHours(23, 59, 59, 999);
+        where.createdAt.lte = endOfDay;
+      }
+    }
+    
+    if (tariffCode !== undefined && tariffCode !== null) {
+      where.tariffCode = Number(tariffCode);
+    }
+
+    const [orders, total] = await this.prismaService.$transaction([
+      this.prismaService.cdekOrder.findMany({
+        where,
+        orderBy: { createdAt: 'desc' },
+        take: Math.min(Number(limit), 100),
+        skip: Number(offset),
+        include: {
+          packages: {
+            include: {
+              items: true,
+            },
+          },
+          requests: true,
+          relatedEntities: true,
+        },
+      }),
+      this.prismaService.cdekOrder.count({ where }),
+    ]);
+
+    return { total, orders };
+  }
+
+  // ------- МАЛЕНЬКИЕ ХЕЛПЕРЫ ВНИЗ СЕРВИСА -------
+
+  /** Приводит значение к number | null */
+  private _n(v: any): number | null {
+    if (v === null || v === undefined || v === '') return null;
+    const n = Number(v);
+    return Number.isFinite(n) ? n : null;
+  }
+
+  private _j(v: any): Prisma.InputJsonValue | undefined {
+    return v === null || v === undefined ? undefined : (v as Prisma.InputJsonValue);
+  }
+
+  private _cleanPayload<T = any>(obj: T): T {
+    if (obj === null || obj === undefined) return obj as T;
+    if (Array.isArray(obj)) {
+      return obj
+        .map((v) => this._cleanPayload(v))
+        .filter((v) => v !== undefined) as any;
+    }
+    if (typeof obj === 'object') {
+      const out: any = {};
+      for (const [k, v] of Object.entries(obj)) {
+        const cleaned = this._cleanPayload(v);
+        // удаляем пустые строки, null, undefined
+        if (
+          cleaned === undefined ||
+          cleaned === null ||
+          (typeof cleaned === 'string' && cleaned.trim() === '')
+        ) continue;
+        out[k] = cleaned;
+      }
+      return out;
+    }
+    return obj as any;
+  }
+
+  /**
+   * Формирование и получение накладной к заказу
+   * Этот метод объединяет два запроса:
+   * 1. POST /v2/print/orders - формирование накладной
+   * 2. GET /v2/print/orders/{uuid} - получение статуса и ссылки на скачивание
+   */
+  async printWaybill(dto: PrintWaybillRequestDto): Promise<WaybillDto & { url?: string }> {
+    this.logger.log('Запрос на формирование накладной к заказу');
+
+    // Валидация: не более 100 заказов
+    if (dto.orders.length > 100) {
+      throw new HttpException(
+        'Нельзя передавать более 100 номеров заказов в одном запросе',
+        HttpStatus.BAD_REQUEST,
+      );
+    }
+
+    // Валидация: у каждого заказа должен быть order_uuid или cdek_number
+    for (const order of dto.orders) {
+      if (!order.order_uuid && !order.cdek_number) {
+        throw new HttpException(
+          'Для каждого заказа необходимо указать order_uuid или cdek_number',
+          HttpStatus.BAD_REQUEST,
+        );
+      }
+    }
+
+    try {
+      // Шаг 1: Формирование накладной
+      this.logger.log('Отправка запроса на формирование накладной');
+      const createResponse = await this.post('/v2/print/orders', {
+        orders: dto.orders,
+        copy_count: dto.orders[0]?.copy_count || 2,
+        type: dto.type || 'tpl_russia',
+      });
+
+      const waybillUuid = createResponse?.entity?.uuid;
+      if (!waybillUuid) {
+        throw new HttpException(
+          'Не удалось получить UUID накладной из ответа CDEK',
+          HttpStatus.INTERNAL_SERVER_ERROR,
+        );
+      }
+
+      this.logger.log(`Накладная создана с UUID: ${waybillUuid}`);
+
+      // Шаг 2: Polling статуса накладной (максимум 30 попыток с интервалом 2 секунды)
+      const maxAttempts = 30;
+      const pollInterval = 2000; // 2 секунды
+
+      for (let attempt = 1; attempt <= maxAttempts; attempt++) {
+        this.logger.log(`Проверка статуса накладной (попытка ${attempt}/${maxAttempts})`);
+
+        // Задержка перед следующей проверкой (кроме первой попытки)
+        if (attempt > 1) {
+          await new Promise(resolve => setTimeout(resolve, pollInterval));
+        }
+
+        // Получение статуса накладной
+        const statusResponse: any = await this.get(`/v2/print/orders/${waybillUuid}`);
+        const entity = statusResponse?.data?.entity;
+
+        if (!entity) {
+          this.logger.warn('Не удалось получить информацию о накладной');
+          continue;
+        }
+
+        const statuses = entity.statuses || [];
+        const currentStatus = statuses[statuses.length - 1]?.code;
+
+        this.logger.log(`Текущий статус накладной: ${currentStatus}`);
+
+        // Обработка различных статусов
+        switch (currentStatus) {
+          case 'READY':
+            // Накладная готова, скачиваем PDF
+            this.logger.log('Накладная успешно сформирована, скачиваем PDF...');
+            
+            try {
+              // Скачиваем PDF файл
+              const pdfUrl = `https://api.edu.cdek.ru/v2/print/orders/${waybillUuid}.pdf`;
+              const pdfResponse = await this.apiClient.get(pdfUrl, {
+                responseType: 'arraybuffer',
+                headers: {
+                  Authorization: `${this.currentToken!.token_type} ${this.currentToken!.access_token}`,
+                },
+              });
+              
+              const pdfBuffer = Buffer.from(pdfResponse.data);
+              this.logger.log(`PDF скачан успешно, размер: ${pdfBuffer.length} байт`);
+              
+              return {
+                ...entity,
+                url: entity.url,
+                pdfBuffer: pdfBuffer,
+                pdfBase64: pdfBuffer.toString('base64'),
+              };
+            } catch (pdfError) {
+              this.logger.error('Ошибка при скачивании PDF:', pdfError.message);
+              // Возвращаем хотя бы URL, если скачивание не удалось
+              return {
+                ...entity,
+                url: entity.url,
+              };
+            }
+
+          case 'INVALID':
+            // Некорректный запрос
+            throw new HttpException(
+              'Некорректный запрос на формирование накладной',
+              HttpStatus.BAD_REQUEST,
+            );
+
+          case 'REMOVED':
+            // Истекло время жизни
+            throw new HttpException(
+              'Истекло время жизни ссылки на накладную',
+              HttpStatus.GONE,
+            );
+
+          case 'ACCEPTED':
+          case 'PROCESSING':
+            // Продолжаем ждать
+            this.logger.log('Накладная формируется, ожидаем...');
+            break;
+
+          default:
+            this.logger.warn(`Неизвестный статус: ${currentStatus}`);
+        }
+      }
+
+      // Если за 30 попыток не получили готовый статус
+      throw new HttpException(
+        'Превышено время ожидания формирования накладной',
+        HttpStatus.REQUEST_TIMEOUT,
+      );
+    } catch (error) {
+      this.logger.error('Ошибка при формировании накладной:', error.message);
+      
+      if (error instanceof HttpException) {
+        throw error;
+      }
+
+      throw new HttpException(
+        `Не удалось сформировать накладную: ${error.message}`,
+        error.status || HttpStatus.INTERNAL_SERVER_ERROR,
+      );
+    }
+  }
+
+  /**
+   * Формирование и получение ШК места к заказу
+   * Этот метод объединяет два запроса:
+   * 1. POST /v2/print/barcodes - формирование ШК места
+   * 2. GET /v2/print/barcodes/{uuid} - получение статуса и ссылки на скачивание
+   */
+  async printBarcode(dto: PrintBarcodeRequestDtoV2): Promise<BarcodeDto & { url?: string }> {
+    this.logger.log('Запрос на формирование ШК места к заказу');
+
+    // Валидация: не более 100 заказов
+    if (dto.orders.length > 100) {
+      throw new HttpException(
+        'Нельзя передавать более 100 номеров заказов в одном запросе',
+        HttpStatus.BAD_REQUEST,
+      );
+    }
+
+    // Валидация: у каждого заказа должен быть order_uuid или cdek_number
+    for (const order of dto.orders) {
+      if (!order.order_uuid && !order.cdek_number) {
+        throw new HttpException(
+          'Для каждого заказа необходимо указать order_uuid или cdek_number',
+          HttpStatus.BAD_REQUEST,
+        );
+      }
+    }
+
+    try {
+      // Шаг 1: Формирование ШК места
+      this.logger.log('Отправка запроса на формирование ШК места');
+      const createResponse = await this.post('/v2/print/barcodes', {
+        orders: dto.orders,
+        copy_count: dto.copy_count || 1,
+        format: dto.format || 'A4',
+        lang: dto.lang || 'RUS',
+      });
+
+      const barcodeUuid = createResponse?.entity?.uuid;
+      if (!barcodeUuid) {
+        throw new HttpException(
+          'Не удалось получить UUID ШК места из ответа CDEK',
+          HttpStatus.INTERNAL_SERVER_ERROR,
+        );
+      }
+
+      this.logger.log(`ШК места создан с UUID: ${barcodeUuid}`);
+
+      // Шаг 2: Polling статуса ШК места (максимум 30 попыток с интервалом 2 секунды)
+      const maxAttempts = 30;
+      const pollInterval = 2000; // 2 секунды
+
+      for (let attempt = 1; attempt <= maxAttempts; attempt++) {
+        this.logger.log(`Проверка статуса ШК места (попытка ${attempt}/${maxAttempts})`);
+
+        // Задержка перед следующей проверкой (кроме первой попытки)
+        if (attempt > 1) {
+          await new Promise(resolve => setTimeout(resolve, pollInterval));
+        }
+
+        // Получение статуса ШК места
+        const statusResponse: any = await this.get(`/v2/print/barcodes/${barcodeUuid}`);
+        const entity = statusResponse?.data?.entity;
+
+        if (!entity) {
+          this.logger.warn('Не удалось получить информацию о ШК места');
+          continue;
+        }
+
+        const statuses = entity.statuses || [];
+        const currentStatus = statuses[statuses.length - 1]?.code;
+
+        this.logger.log(`Текущий статус ШК места: ${currentStatus}`);
+
+        // Обработка различных статусов
+        switch (currentStatus) {
+          case 'READY':
+            // ШК места готов, скачиваем PDF
+            this.logger.log('ШК места успешно сформирован, скачиваем PDF...');
+            
+            try {
+              // Скачиваем PDF файл
+              const pdfUrl = `https://api.edu.cdek.ru/v2/print/barcodes/${barcodeUuid}.pdf`;
+              const pdfResponse = await this.apiClient.get(pdfUrl, {
+                responseType: 'arraybuffer',
+                headers: {
+                  Authorization: `${this.currentToken!.token_type} ${this.currentToken!.access_token}`,
+                },
+              });
+              
+              const pdfBuffer = Buffer.from(pdfResponse.data);
+              this.logger.log(`PDF ШК места скачан успешно, размер: ${pdfBuffer.length} байт`);
+              
+              return {
+                ...entity,
+                url: entity.url,
+                pdfBuffer: pdfBuffer,
+                pdfBase64: pdfBuffer.toString('base64'),
+              };
+            } catch (pdfError) {
+              this.logger.error('Ошибка при скачивании PDF ШК места:', pdfError.message);
+              // Возвращаем хотя бы URL, если скачивание не удалось
+              return {
+                ...entity,
+                url: entity.url,
+              };
+            }
+
+          case 'INVALID':
+            // Некорректный запрос
+            throw new HttpException(
+              'Некорректный запрос на формирование ШК места',
+              HttpStatus.BAD_REQUEST,
+            );
+
+          case 'REMOVED':
+            // Истекло время жизни
+            throw new HttpException(
+              'Истекло время жизни ссылки на ШК места',
+              HttpStatus.GONE,
+            );
+
+          case 'ACCEPTED':
+          case 'PROCESSING':
+            // Продолжаем ждать
+            this.logger.log('ШК места формируется, ожидаем...');
+            break;
+
+          default:
+            this.logger.warn(`Неизвестный статус ШК места: ${currentStatus}`);
+        }
+      }
+
+      // Если за 30 попыток не получили готовый статус
+      throw new HttpException(
+        'Превышено время ожидания формирования ШК места',
+        HttpStatus.REQUEST_TIMEOUT,
+      );
+    } catch (error) {
+      this.logger.error('Ошибка при формировании ШК места:', error.message);
+      
+      if (error instanceof HttpException) {
+        throw error;
+      }
+
+      throw new HttpException(
+        `Не удалось сформировать ШК места: ${error.message}`,
+        error.status || HttpStatus.INTERNAL_SERVER_ERROR,
+      );
+    }
+  }
 }

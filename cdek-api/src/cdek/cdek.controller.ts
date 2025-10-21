@@ -28,6 +28,9 @@ import { CalcTariffListRequestDto, CalcTariffListResponseDto } from './dto/calcu
 import { SuggestCitiesQueryDto, RegionsQueryDto, PostalCodesQueryDto, GeolocationQueryDto, CitiesQueryDto } from './dto/location.dto';
 import { ListFromDbQueryDto, SyncDeliveryPointsQueryDto } from './dto/cdek.dto';
 import { CreateCdekOrderDto } from './dto/create-cdek-order.dto';
+import { GetOrdersListQueryDto, OrdersListResponseDto } from './dto/orders-list.dto';
+import { PrintWaybillRequestDto, PrintWaybillResponseDto } from './dto/print-waybill.dto';
+import { PrintBarcodeRequestDto, PrintBarcodeResponseDto } from './dto/print-barcode.dto';
 
 @ApiTags('CDEK API')
 @SkipThrottle() // Отключаем throttling для всех методов CDEK
@@ -138,6 +141,60 @@ export class CdekController {
   }
 
   @ApiOperation({
+    summary: 'Получить список заказов из БД',
+    description: 'Получает список заказов из локальной базы данных с возможностью фильтрации по датам и типу доставки',
+  })
+  @ApiResponse({ 
+    status: 200, 
+    description: 'Список заказов получен',
+    type: OrdersListResponseDto
+  })
+  @ApiBearerAuth()
+  @Get('orders/list')
+  @UsePipes(new ValidationPipe({ transform: true, whitelist: true }))
+  async getOrdersList(@Query() query: GetOrdersListQueryDto) {
+    try {
+      this.logger.log(`Запрос списка заказов: limit=${query.limit}, offset=${query.offset}`);
+      
+      const params: any = {
+        limit: query.limit,
+        offset: query.offset,
+      };
+      
+      if (query.dateFrom) {
+        params.dateFrom = new Date(query.dateFrom);
+      }
+      
+      if (query.dateTo) {
+        params.dateTo = new Date(query.dateTo);
+      }
+      
+      if (query.tariffCode !== undefined) {
+        params.tariffCode = query.tariffCode;
+      }
+      
+      const result = await this.cdekService.getOrdersList(params);
+      
+      return {
+        success: true,
+        total: result.total,
+        orders: result.orders,
+        message: 'Список заказов получен',
+      };
+    } catch (error) {
+      this.logger.error('Ошибка при получении списка заказов:', error.message);
+      throw new HttpException(
+        {
+          success: false,
+          message: 'Не удалось получить список заказов',
+          error: error.message,
+        },
+        error.status || HttpStatus.INTERNAL_SERVER_ERROR,
+      );
+    }
+  }
+
+  @ApiOperation({
     summary: 'Получить информацию о заказе по номеру',
     description: 'Получает детальную информацию о ранее созданном заказе по номеру СДЭК или ИМ заказа. В ответе содержатся данные о статусе заказа, деталях доставки и информации о получателе.',
   })
@@ -220,6 +277,115 @@ export class CdekController {
       this.logger.error('Ошибка при регистрации заказа', error?.message, error?.stack);
       throw new HttpException(
         { success: false, message: 'Не удалось зарегистрировать заказ', error: error?.message },
+        error?.status || HttpStatus.INTERNAL_SERVER_ERROR,
+      );
+    }
+  }
+
+  @ApiOperation({
+    summary: 'Печать накладной к заказу',
+    description: 
+      'Формирует накладную в формате PDF и возвращает её в виде Base64 строки. ' +
+      'Метод автоматически ожидает готовности накладной (polling статуса). ' +
+      'Максимум 100 заказов в одном запросе. Также возвращается ссылка, действительная 1 час.',
+  })
+  @ApiResponse({ 
+    status: 200, 
+    description: 'Накладная сформирована, PDF файл и ссылка получены',
+    type: PrintWaybillResponseDto,
+  })
+  @ApiResponse({ status: 400, description: 'Неверные параметры запроса' })
+  @ApiResponse({ status: 408, description: 'Превышено время ожидания формирования накладной' })
+  @ApiBearerAuth()
+  @Post('orders/print-waybill')
+  @UsePipes(new ValidationPipe({ whitelist: true, transform: true }))
+  async printWaybill(@Body() dto: PrintWaybillRequestDto) {
+    try {
+      this.logger.log(`Запрос на печать накладной для ${dto.orders.length} заказа(ов)`);
+      
+      const result = await this.cdekService.printWaybill(dto);
+      
+      // Создаем ответ без Buffer (он не сериализуется в JSON)
+      const response: any = {
+        success: true,
+        entity: {
+          uuid: result.uuid,
+          orders: result.orders,
+          copy_count: result.copy_count,
+          type: result.type,
+          url: result.url,
+          statuses: result.statuses,
+        },
+        url: result.url,
+        pdfBase64: result.pdfBase64, // PDF в Base64 для фронтенда
+        status: result.statuses?.[result.statuses.length - 1]?.code,
+        message: 'Накладная успешно сформирована',
+      };
+      
+      return response;
+    } catch (error: any) {
+      this.logger.error('Ошибка при формировании накладной:', error?.message);
+      throw new HttpException(
+        { 
+          success: false, 
+          message: 'Не удалось сформировать накладную', 
+          error: error?.message 
+        },
+        error?.status || HttpStatus.INTERNAL_SERVER_ERROR,
+      );
+    }
+  }
+
+  @ApiOperation({
+    summary: 'Формирование ШК места к заказу',
+    description: 
+      'Формирует штрих-код места в формате PDF и возвращает его в виде Base64 строки. ' +
+      'Метод автоматически ожидает готовности ШК (polling статуса). ' +
+      'Максимум 100 заказов в одном запросе. Также возвращается ссылка, действительная 1 час.',
+  })
+  @ApiResponse({ 
+    status: 200, 
+    description: 'ШК места сформирован, PDF файл и ссылка получены',
+    type: PrintBarcodeResponseDto,
+  })
+  @ApiResponse({ status: 400, description: 'Неверные параметры запроса' })
+  @ApiResponse({ status: 408, description: 'Превышено время ожидания формирования ШК места' })
+  @ApiBearerAuth()
+  @Post('orders/print-barcode')
+  @UsePipes(new ValidationPipe({ whitelist: true, transform: true }))
+  async printBarcode(@Body() dto: PrintBarcodeRequestDto) {
+    try {
+      this.logger.log(`Запрос на формирование ШК места для ${dto.orders.length} заказа(ов)`);
+      
+      const result = await this.cdekService.printBarcode(dto);
+      
+      // Создаем ответ без Buffer (он не сериализуется в JSON)
+      const response: any = {
+        success: true,
+        entity: {
+          uuid: result.uuid,
+          orders: result.orders,
+          copy_count: result.copy_count,
+          format: result.format,
+          lang: result.lang,
+          url: result.url,
+          statuses: result.statuses,
+        },
+        url: result.url,
+        pdfBase64: result.pdfBase64, // PDF в Base64 для фронтенда
+        status: result.statuses?.[result.statuses.length - 1]?.code,
+        message: 'ШК места успешно сформирован',
+      };
+      
+      return response;
+    } catch (error: any) {
+      this.logger.error('Ошибка при формировании ШК места:', error?.message);
+      throw new HttpException(
+        { 
+          success: false, 
+          message: 'Не удалось сформировать ШК места', 
+          error: error?.message 
+        },
         error?.status || HttpStatus.INTERNAL_SERVER_ERROR,
       );
     }

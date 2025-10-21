@@ -67,6 +67,7 @@ const fromAddressSuggestions = ref<Array<{ value: string; label: string; data: a
 const fromAddressLoading = ref(false)
 const fromFlat = ref('')
 const fromPostalCode = ref('')
+const shipmentPoint = ref<string>('') // Код ПВЗ для самопривоза
 
 // Адрес получателя
 const toCity = ref('')
@@ -81,6 +82,7 @@ const toAddressSuggestions = ref<Array<{ value: string; label: string; data: any
 const toAddressLoading = ref(false)
 const toFlat = ref('')
 const toPostalCode = ref('')
+const deliveryPoint = ref<string>('') // Код ПВЗ для получения
 
 // Данные заказчика
 const customerName = ref('')
@@ -124,6 +126,15 @@ interface TariffOption {
     min?: string
     max?: string
   }
+}
+
+// Режимы доставки для определения типа тарифа
+enum DeliveryMode {
+  DOOR_DOOR = 1,      // от двери до двери
+  DOOR_WAREHOUSE = 2, // от двери до склада
+  WAREHOUSE_DOOR = 3, // со склада до двери  
+  WAREHOUSE_WAREHOUSE = 4, // со склада до склада
+  DOOR_POSTAMAT = 6   // от двери до постамата
 }
 
 type AlertType = 'success' | 'error'
@@ -232,10 +243,42 @@ const getDeliveryDateLabel = (range?: { min?: string; max?: string }) => {
 }
 
 const getPeriodLabel = (tariff: TariffOption) => {
-  const { period_min, period_max } = tariff
-  if (!period_min && !period_max) return 'Срок уточняется'
-  if (period_min === period_max) return `${period_min} дн.`
-  return `${period_min}–${period_max} дн.`
+  const minDate = tariff.delivery_date_range?.min
+  const maxDate = tariff.delivery_date_range?.max
+
+  if (!minDate && !maxDate) return 'Срок уточняется'
+
+  // Вычисляем количество дней от сегодня
+  const today = new Date()
+  today.setHours(0, 0, 0, 0)
+
+  const calculateDays = (dateString: string) => {
+    const targetDate = new Date(dateString)
+    targetDate.setHours(0, 0, 0, 0)
+    const diffTime = targetDate.getTime() - today.getTime()
+    return Math.ceil(diffTime / (1000 * 60 * 60 * 24))
+  }
+
+  const minDays = minDate ? calculateDays(minDate) : null
+  const maxDays = maxDate ? calculateDays(maxDate) : null
+
+  if (minDays === null && maxDays === null) return 'Срок уточняется'
+  if (minDays === maxDays) return `${minDays} ${getDaysWord(minDays)}`
+  if (minDays === null) return `до ${maxDays} ${getDaysWord(maxDays)}`
+  if (maxDays === null) return `от ${minDays} ${getDaysWord(minDays)}`
+  
+  return `${minDays}–${maxDays} ${getDaysWord(maxDays)}`
+}
+
+const getDaysWord = (days: number | null) => {
+  if (days === null) return 'дн.'
+  const lastDigit = days % 10
+  const lastTwoDigits = days % 100
+  
+  if (lastTwoDigits >= 11 && lastTwoDigits <= 19) return 'дней'
+  if (lastDigit === 1) return 'день'
+  if (lastDigit >= 2 && lastDigit <= 4) return 'дня'
+  return 'дней'
 }
 
 const updateTotals = (deliverySum: number) => {
@@ -279,6 +322,32 @@ const selectTariff = (tariff: TariffOption) => {
     type: 'success',
     message: `Выбран тариф «${tariff.tariff_name}»`,
   }
+}
+
+// Определяем режим доставки по тарифу
+const getDeliveryModeFromTariff = (tariff: TariffOption | undefined): number => {
+  if (!tariff) return DeliveryMode.DOOR_DOOR
+  return typeof tariff.delivery_mode === 'number' ? tariff.delivery_mode : DeliveryMode.DOOR_DOOR
+}
+
+// Проверяем, нужен ли адрес отправления (from_location)
+const needsFromLocation = (mode: number): boolean => {
+  return mode === DeliveryMode.DOOR_DOOR || mode === DeliveryMode.DOOR_WAREHOUSE || mode === DeliveryMode.DOOR_POSTAMAT
+}
+
+// Проверяем, нужен ли адрес получения (to_location)
+const needsToLocation = (mode: number): boolean => {
+  return mode === DeliveryMode.DOOR_DOOR || mode === DeliveryMode.WAREHOUSE_DOOR
+}
+
+// Проверяем, нужен ли shipment_point (ПВЗ отправки)
+const needsShipmentPoint = (mode: number): boolean => {
+  return mode === DeliveryMode.WAREHOUSE_DOOR || mode === DeliveryMode.WAREHOUSE_WAREHOUSE
+}
+
+// Проверяем, нужен ли delivery_point (ПВЗ получения)
+const needsDeliveryPoint = (mode: number): boolean => {
+  return mode === DeliveryMode.DOOR_WAREHOUSE || mode === DeliveryMode.WAREHOUSE_WAREHOUSE || mode === DeliveryMode.DOOR_POSTAMAT
 }
 
 // Таймауты для debounce
@@ -811,67 +880,143 @@ const createOrder = async () => {
   }
 
   try {
-    const orderData = {
-      type: 1,
+    // Получаем выбранный тариф
+    const selectedTariff = tariffResults.value.find(t => t.tariff_code === selectedTariffCode.value)
+    const deliveryMode = getDeliveryModeFromTariff(selectedTariff)
+    
+    // Формируем данные заказа согласно CDEK API
+    const orderData: any = {
+      type: 1, // 1 - интернет-магазин, 2 - доставка
       number: `ORDER-${Date.now()}`,
       tariff_code: selectedTariffCode.value,
-      sender: {
-        name: sellerName.value || 'Отправитель',
-        phones: [{ number: sellerPhone.value || '79000000000' }],
-      },
+      comment: `Заказ через ${tradingCompany.value}`,
+      
+      // Получатель (обязательно)
       recipient: {
         name: customerName.value,
-        phones: [{ number: customerPhone.value }],
+        phones: [
+          {
+            number: customerPhone.value.startsWith('+') 
+              ? customerPhone.value 
+              : `+${customerPhone.value}`
+          }
+        ]
       },
-      from_location: {
-        code: fromCityCode.value || undefined,
-        country_code: fromCountryCode.value || undefined,
-        city: fromCityName.value || undefined,
-        postal_code: fromPostalCode.value || undefined,
-        address: fromAddress.value || undefined,
-      },
-      to_location: {
-        code: toCityCode.value || undefined,
-        country_code: toCountryCode.value || undefined,
-        city: toCityName.value || undefined,
-        postal_code: toPostalCode.value || undefined,
-        address: toAddress.value || undefined,
-      },
+
+      // Упаковки с товарами
       packages: packages.value
         .filter((p) => p.weight && p.length && p.width && p.height)
-        .map((p) => ({
-          number: `PKG-${Date.now()}-${Math.random().toString(36).slice(2, 11)}`,
+        .map((p, index) => ({
+          number: `${index + 1}`,
           weight: parseInt(p.weight, 10),
           length: parseInt(p.length, 10),
           width: parseInt(p.width, 10),
           height: parseInt(p.height, 10),
+          comment: '-', // Обязательное непустое значение
           items: [
             {
               name: 'Товар',
-              ware_key: 'ITEM-001',
+              ware_key: `ITEM-${index + 1}`,
               payment: { value: parseFloat(estimatedCost.value || '0') },
               cost: parseFloat(estimatedCost.value || '0'),
               weight: parseInt(p.weight, 10),
-              amount: 1,
-            },
-          ],
-        })),
+              amount: 1
+            }
+          ]
+        }))
     }
 
-    const result = await cdekService.createOrder(orderData)
-    const orderUuid = result?.entity?.uuid
+    // Отправитель (если есть данные продавца)
+    if (sellerName.value && sellerPhone.value) {
+      orderData.sender = {
+        name: sellerName.value,
+        phones: [
+          {
+            number: sellerPhone.value.startsWith('+')
+              ? sellerPhone.value
+              : `+${sellerPhone.value}`
+          }
+        ]
+      }
+    }
 
+    // Обработка адресов в зависимости от режима доставки
+    
+    // ОТ СКЛАДА: используем shipment_point
+    if (needsShipmentPoint(deliveryMode)) {
+      if (shipmentPoint.value) {
+        orderData.shipment_point = shipmentPoint.value
+      } else {
+        orderAlert.value = {
+          type: 'error',
+          message: 'Для выбранного тарифа необходимо указать код ПВЗ отправки'
+        }
+        return
+      }
+    }
+    // ОТ ДВЕРИ: используем from_location
+    else if (needsFromLocation(deliveryMode)) {
+      orderData.from_location = {
+        code: fromCityCode.value ?? undefined,
+        country_code: fromCountryCode.value,
+        city: fromCityName.value,
+        address: fromAddress.value || undefined,
+        postal_code: fromPostalCode.value || undefined
+      }
+    }
+
+    // ДО СКЛАДА/ПОСТАМАТА: используем delivery_point
+    if (needsDeliveryPoint(deliveryMode)) {
+      if (deliveryPoint.value) {
+        orderData.delivery_point = deliveryPoint.value
+      } else {
+        orderAlert.value = {
+          type: 'error',
+          message: 'Для выбранного тарифа необходимо указать код ПВЗ получения'
+        }
+        return
+      }
+    }
+    // ДО ДВЕРИ: используем to_location
+    else if (needsToLocation(deliveryMode)) {
+      orderData.to_location = {
+        code: toCityCode.value ?? undefined,
+        country_code: toCountryCode.value,
+        city: toCityName.value,
+        address: toAddress.value || undefined,
+        postal_code: toPostalCode.value || undefined
+      }
+    }
+
+    console.log('📦 Отправка заказа в CDEK:', JSON.stringify(orderData, null, 2))
+    
+    const result = await cdekService.createOrder(orderData)
+    
+    console.log('✅ Результат создания заказа:', result)
+    
+    // Формируем сообщение об успехе
+    const successParts = ['Заказ успешно создан!']
+    if (result.entity?.uuid) successParts.push(`UUID: ${result.entity.uuid}`)
+    if (result.local?.cdekNumber) successParts.push(`Номер CDEK: ${result.local.cdekNumber}`)
+    
     orderAlert.value = {
       type: 'success',
-      message: orderUuid ? `Заказ успешно создан! UUID: ${orderUuid}` : 'Заказ успешно создан!',
+      message: successParts.join(' ')
     }
-
-    resetForm()
+    
   } catch (error: any) {
-    console.error('Ошибка создания заказа:', error)
+    console.error('❌ Ошибка при создании заказа:', error)
+    const errorMessage = error.response?.data?.error || error.message || 'Неизвестная ошибка'
+    const errorDetails = error.response?.data?.requests?.[0]?.errors || []
+    
+    let fullMessage = `Не удалось создать заказ: ${errorMessage}`
+    if (errorDetails.length > 0) {
+      fullMessage += `. Детали: ${errorDetails.map((e: any) => e.message).join(', ')}`
+    }
+    
     orderAlert.value = {
       type: 'error',
-      message: error?.response?.data?.message || error.message || 'Не удалось создать заказ',
+      message: fullMessage
     }
   }
 }
@@ -887,6 +1032,7 @@ const resetForm = () => {
   fromAddress.value = ''
   fromFlat.value = ''
   fromPostalCode.value = ''
+  shipmentPoint.value = ''
   toCity.value = ''
   toCityCode.value = null
   toCityName.value = ''
@@ -895,6 +1041,7 @@ const resetForm = () => {
   toAddress.value = ''
   toFlat.value = ''
   toPostalCode.value = ''
+  deliveryPoint.value = ''
   customerName.value = ''
   customerPhone.value = ''
   sellerName.value = ''
@@ -1013,6 +1160,12 @@ const resetForm = () => {
           placeholder="Индекс"
           :error="formErrors.fromPostalCode"
         />
+        <Input
+          v-model="shipmentPoint"
+          height="54px"
+          width="392px"
+          placeholder="Код ПВЗ отправки (если со склада)"
+        />
       </section>
     </section>
 
@@ -1072,6 +1225,12 @@ const resetForm = () => {
           width="392px"
           placeholder="Индекс"
           :error="formErrors.toPostalCode"
+        />
+        <Input
+          v-model="deliveryPoint"
+          height="54px"
+          width="392px"
+          placeholder="Код ПВЗ получения (если на склад/постамат)"
         />
       </section>
     </section>

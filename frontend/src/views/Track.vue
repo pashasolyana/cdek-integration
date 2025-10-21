@@ -15,7 +15,7 @@
                             placeholder="10162191938"
                             :class="{ 'is-invalid': touched && !valid, 'is-valid': touched && valid }"
                             @blur="touched = true" />
-                        <p v-if="touched && !valid" class="field-error">Только цифры, 11–14 символов</p>
+                        <p v-if="touched && !valid" class="field-error">Только цифры, 10–14 символов</p>
                     </div>
 
                     <p v-if="serverError" class="server-error" role="alert">{{ serverError }}</p>
@@ -80,7 +80,7 @@ const loading = ref(false)
 const serverError = ref<string | null>(null)
 const result = ref<any>(null)
 
-const valid = computed(() => /^\d{11,14}$/.test(number.value.trim()))
+const valid = computed(() => /^\d{10,14}$/.test(number.value.trim()))
 const entity = computed(() => result.value?.data?.entity || {})
 const statuses = computed<any[]>(() => entity.value?.statuses || [])
 const sortedStatuses = computed(() =>
