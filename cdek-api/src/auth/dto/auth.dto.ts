@@ -1,6 +1,11 @@
-
 import {
-  IsString, IsNotEmpty, MinLength, Matches, IsOptional, IsEmail, ValidateNested
+  IsString,
+  IsNotEmpty,
+  MinLength,
+  Matches,
+  IsOptional,
+  IsEmail,
+  ValidateNested,
 } from 'class-validator';
 import { Transform, Type } from 'class-transformer';
 
@@ -28,7 +33,7 @@ export class RegisterUserDto {
   @Transform(({ value }) => value?.trim())
   @Matches(
     /^(\+?7|8)[\s\-\(\)]?\d{3}[\s\-\(\)]?\d{3}[\s\-]?\d{2}[\s\-]?\d{2}$|^[78]\d{10}$/,
-    { message: PHONE_HINT }
+    { message: PHONE_HINT },
   )
   phone: string;
 
@@ -37,23 +42,29 @@ export class RegisterUserDto {
   @MinLength(8, { message: 'Пароль должен содержать минимум 8 символов' })
   @Matches(/(?=.*[a-zа-яё])/, { message: 'Нужна хотя бы одна строчная буква' })
   @Matches(/(?=.*[A-ZА-ЯЁ])/, { message: 'Нужна хотя бы одна заглавная буква' })
-  @Matches(/(?=.*\d)/,        { message: 'Нужна хотя бы одна цифра' })
+  @Matches(/(?=.*\d)/, { message: 'Нужна хотя бы одна цифра' })
   @Matches(/(?=.*[^0-9A-Za-zА-Яа-яЁё_\s])/, {
-    message: 'Нужен хотя бы один спецсимвол'
+    message: 'Нужен хотя бы один спецсимвол',
   })
   password: string;
 }
 
 export class RegisterCompanyDto {
-  @IsNotEmpty() @IsString() @Transform(({ value }) => value?.trim())
+  @IsNotEmpty()
+  @IsString()
+  @Transform(({ value }) => value?.trim())
   companyType: string; // "ООО" | "ИП"
 
-  @IsNotEmpty() @IsString() @Transform(({ value }) => value?.trim())
+  @IsNotEmpty()
+  @IsString()
+  @Transform(({ value }) => value?.trim())
   companyName: string;
 
   // ИНН: 10 (юр.лица) или 12 (ИП)
   @IsNotEmpty()
-  @Matches(/^\d{10}$|^\d{12}$/, { message: 'ИНН должен содержать 10 или 12 цифр' })
+  @Matches(/^\d{10}$|^\d{12}$/, {
+    message: 'ИНН должен содержать 10 или 12 цифр',
+  })
   inn: string;
 
   // КПП: 9 цифр, только для ООО — поэтому опционально
@@ -63,7 +74,9 @@ export class RegisterCompanyDto {
 
   // ОГРН: 13 (юр.лица) или 15 (ИП)
   @IsNotEmpty()
-  @Matches(/^\d{13}$|^\d{15}$/, { message: 'ОГРН должен содержать 13 или 15 цифр' })
+  @Matches(/^\d{13}$|^\d{15}$/, {
+    message: 'ОГРН должен содержать 13 или 15 цифр',
+  })
   ogrn: string;
 
   @IsOptional()
@@ -76,7 +89,7 @@ export class RegisterCompanyDto {
   @Transform(({ value }) => value?.trim())
   @Matches(
     /^(\+?7|8)[\s\-\(\)]?\d{3}[\s\-\(\)]?\d{3}[\s\-]?\d{2}[\s\-]?\d{2}$|^[78]\d{10}$/,
-    { message: PHONE_HINT }
+    { message: PHONE_HINT },
   )
   phone?: string;
 
@@ -92,25 +105,33 @@ export class RegisterCompanyDto {
   @Matches(/^\d{20}$/, { message: 'Корр. счёт должен содержать 20 цифр' })
   correspondentAccount: string;
 
-  @IsNotEmpty() @IsString() @Transform(({ value }) => value?.trim())
+  @IsNotEmpty()
+  @IsString()
+  @Transform(({ value }) => value?.trim())
   actualAddress: string;
 
   @IsNotEmpty()
   @Matches(/^\d{6}$/, { message: 'Индекс должен содержать 6 цифр' })
   legalIndex: string;
 
-  @IsNotEmpty() @IsString() @Transform(({ value }) => value?.trim())
+  @IsNotEmpty()
+  @IsString()
+  @Transform(({ value }) => value?.trim())
   legalCity: string;
 
-  @IsNotEmpty() @IsString() @Transform(({ value }) => value?.trim())
+  @IsNotEmpty()
+  @IsString()
+  @Transform(({ value }) => value?.trim())
   legalAddress: string;
 }
 
 export class RegisterDto {
-  @ValidateNested() @Type(() => RegisterUserDto)
+  @ValidateNested()
+  @Type(() => RegisterUserDto)
   user: RegisterUserDto;
 
-  @ValidateNested() @Type(() => RegisterCompanyDto)
+  @ValidateNested()
+  @Type(() => RegisterCompanyDto)
   company: RegisterCompanyDto;
 }
 
@@ -120,7 +141,7 @@ export class LoginDto {
   @Transform(({ value }) => value?.trim())
   @Matches(
     /^(\+?7|8)[\s\-\(\)]?\d{3}[\s\-\(\)]?\d{3}[\s\-]?\d{2}[\s\-]?\d{2}$|^[78]\d{10}$/,
-    { message: PHONE_HINT }
+    { message: PHONE_HINT },
   )
   phone: string;
 
@@ -136,14 +157,16 @@ export class RefreshTokenDto {
   refreshToken: string;
 }
 
-
 export class ForgotStartDto {
   @IsNotEmpty()
   @IsString()
   @Transform(({ value }) => value?.trim())
-  @Matches(/^(\+?7|8)[\s\-\(\)]?\d{3}[\s\-\(\)]?\d{3}[\s\-]?\d{2}[\s\-]?\d{2}$|^[78]\d{10}$/, {
-    message: 'Некорректный формат номера телефона',
-  })
+  @Matches(
+    /^(\+?7|8)[\s\-\(\)]?\d{3}[\s\-\(\)]?\d{3}[\s\-]?\d{2}[\s\-]?\d{2}$|^[78]\d{10}$/,
+    {
+      message: 'Некорректный формат номера телефона',
+    },
+  )
   phone!: string;
 }
 
@@ -151,9 +174,12 @@ export class ForgotVerifyDto {
   @IsNotEmpty()
   @IsString()
   @Transform(({ value }) => value?.trim())
-  @Matches(/^(\+?7|8)[\s\-\(\)]?\d{3}[\s\-\(\)]?\d{3}[\s\-]?\d{2}[\s\-]?\d{2}$|^[78]\d{10}$/, {
-    message: 'Некорректный формат номера телефона',
-  })
+  @Matches(
+    /^(\+?7|8)[\s\-\(\)]?\d{3}[\s\-\(\)]?\d{3}[\s\-]?\d{2}[\s\-]?\d{2}$|^[78]\d{10}$/,
+    {
+      message: 'Некорректный формат номера телефона',
+    },
+  )
   phone!: string;
 
   @IsNotEmpty()
@@ -165,9 +191,12 @@ export class ForgotResetDto extends ForgotVerifyDto {
   @IsNotEmpty({ message: 'Пароль обязателен' })
   @IsString({ message: 'Пароль должен быть строкой' })
   @MinLength(8, { message: 'Пароль должен содержать минимум 8 символов' })
-  @Matches(/^(?=.*[a-zа-яё])(?=.*[A-ZА-ЯЁ])(?=.*\d)(?=.*[^0-9A-Za-zА-Яа-яЁё_\s]).+$/, {
-    message:
-      'Пароль должен содержать заглавные, строчные буквы, цифры и спецсимвол',
-  })
+  @Matches(
+    /^(?=.*[a-zа-яё])(?=.*[A-ZА-ЯЁ])(?=.*\d)(?=.*[^0-9A-Za-zА-Яа-яЁё_\s]).+$/,
+    {
+      message:
+        'Пароль должен содержать заглавные, строчные буквы, цифры и спецсимвол',
+    },
+  )
   newPassword!: string;
 }

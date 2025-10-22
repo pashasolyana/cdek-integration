@@ -1,5 +1,15 @@
 import { ApiProperty } from '@nestjs/swagger';
-import { IsOptional, IsString, IsInt, IsUUID, Min, Max, IsEnum, IsArray, ValidateNested } from 'class-validator';
+import {
+  IsOptional,
+  IsString,
+  IsInt,
+  IsUUID,
+  Min,
+  Max,
+  IsEnum,
+  IsArray,
+  ValidateNested,
+} from 'class-validator';
 import { Type } from 'class-transformer';
 
 export enum WaybillType {
@@ -20,7 +30,8 @@ export enum WaybillType {
 
 export class PrintOrderDto {
   @ApiProperty({
-    description: 'Идентификатор заказа в ИС СДЭК (UUID). Обязателен, если не указан cdek_number',
+    description:
+      'Идентификатор заказа в ИС СДЭК (UUID). Обязателен, если не указан cdek_number',
     required: false,
     example: '72753031-3c87-4f7e-8fd9-c3d75c1d8b5f',
   })
@@ -100,7 +111,7 @@ export class WaybillDto {
   @ApiProperty({ description: 'Форма квитанции', enum: WaybillType })
   type?: string;
 
-  @ApiProperty({ 
+  @ApiProperty({
     description: 'Ссылка на скачивание файла (доступна только в статусе READY)',
     required: false,
   })
@@ -109,13 +120,13 @@ export class WaybillDto {
   @ApiProperty({ description: 'Статусы квитанции', type: [PrintStatusDto] })
   statuses: PrintStatusDto[];
 
-  @ApiProperty({ 
+  @ApiProperty({
     description: 'PDF файл в формате Base64 (доступен только в статусе READY)',
     required: false,
   })
   pdfBase64?: string;
 
-  @ApiProperty({ 
+  @ApiProperty({
     description: 'PDF файл как Buffer (доступен только в статусе READY)',
     required: false,
   })
@@ -132,9 +143,9 @@ export class PrintWaybillResponseDto {
   @ApiProperty({ description: 'Ссылка на скачивание PDF', required: false })
   url?: string;
 
-  @ApiProperty({ 
-    description: 'PDF файл в формате Base64 (готов для скачивания на клиенте)', 
-    required: false 
+  @ApiProperty({
+    description: 'PDF файл в формате Base64 (готов для скачивания на клиенте)',
+    required: false,
   })
   pdfBase64?: string;
 

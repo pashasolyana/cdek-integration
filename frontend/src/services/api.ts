@@ -49,7 +49,7 @@ export interface AuthResponse {
 class ApiService {
   private api: AxiosInstance
   private isRefreshing = false
-  private failedQueue: Array<{ resolve: (v?: any) => void; reject: (e?: any) => void }> = []
+  private failedQueue: Array<{ resolve: (value?: AxiosResponse | void) => void; reject: (error: unknown) => void }> = []
 
   constructor() {
     this.api = axios.create({
@@ -79,7 +79,6 @@ class ApiService {
             return this.api(originalRequest)
           } catch (refreshError) {
             this.processQueue(refreshError)
-            if (typeof window !== 'undefined') window.location.href = '/login'
             return Promise.reject(refreshError)
           } finally {
             this.isRefreshing = false
@@ -91,7 +90,7 @@ class ApiService {
     )
   }
 
-  private processQueue(error: any) {
+  private processQueue(error: unknown) {
     this.failedQueue.forEach(({ resolve, reject }) => (error ? reject(error) : resolve()))
     this.failedQueue = []
   }

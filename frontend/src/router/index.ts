@@ -1,4 +1,5 @@
 import { createRouter, createWebHistory } from 'vue-router'
+import { storeToRefs } from 'pinia'
 import { useAuthStore } from '@/stores/auth'
 import LoginView from '../views/LoginView.vue'
 import RegisterView from '@/views/RegisterView.vue'
@@ -8,6 +9,17 @@ import Track from '@/views/Track.vue'
 import CreateOrderView from '@/views/CreateOrderView.vue'
 import HomeView from '@/views/HomeView.vue'
 import OrdersView from '@/views/OrdersView.vue'
+
+type RouteMetaFlags = {
+  requiresAuth?: boolean
+  guest?: boolean
+}
+
+type GuardLocation = {
+  matched: Array<{ meta?: RouteMetaFlags }>
+}
+
+type GuardNext = (location?: string | false | void) => void
 
 const router = createRouter({
   history: createWebHistory(import.meta.env.BASE_URL),
@@ -66,22 +78,22 @@ const router = createRouter({
 })
 
 // Navigation guards
-router.beforeEach(async (to, from, next) => {
+router.beforeEach(async (to: GuardLocation, _from: unknown, next: GuardNext) => {
   const authStore = useAuthStore()
+  const { user, isAuthenticated } = storeToRefs(authStore)
 
   // Проверяем авторизацию при первом запуске
-  if (!authStore.user) {
+  if (!user.value) {
     await authStore.checkAuth()
   }
 
-  const isAuthenticated = authStore.isAuthenticated
-  const requiresAuth = to.matched.some((record) => record.meta.requiresAuth)
-  const isGuestRoute = to.matched.some((record) => record.meta.guest)
+  const requiresAuth = to.matched.some((record) => Boolean(record.meta?.requiresAuth))
+  const isGuestRoute = to.matched.some((record) => Boolean(record.meta?.guest))
 
-  if (requiresAuth && !isAuthenticated) {
+  if (requiresAuth && !isAuthenticated.value) {
     // Требуется авторизация, но пользователь не авторизован
     next('/login')
-  } else if (isGuestRoute && isAuthenticated) {
+  } else if (isGuestRoute && isAuthenticated.value) {
     // Пользователь авторизован, но пытается попасть на страницу для гостей
     next('/')
   } else {

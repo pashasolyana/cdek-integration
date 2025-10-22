@@ -55,55 +55,88 @@ export enum PrintBarcodeLang {
 }
 
 export class PrintReceiptRequestDto {
-  @ApiProperty({ type: [PrintOrderDto], description: 'Список заказов для печати', minItems: 1 })
+  @ApiProperty({
+    type: [PrintOrderDto],
+    description: 'Список заказов для печати',
+    minItems: 1,
+  })
   @IsArray()
   @ArrayNotEmpty({ message: 'Необходимо указать хотя бы один заказ' })
   @ValidateNested({ each: true })
   @Type(() => PrintOrderDto)
   orders!: PrintOrderDto[];
 
-  @ApiPropertyOptional({ description: 'Количество копий на листе', default: 2, minimum: 1 })
+  @ApiPropertyOptional({
+    description: 'Количество копий на листе',
+    default: 2,
+    minimum: 1,
+  })
   @IsOptional()
   @IsInt({ message: 'copy_count должен быть целым числом' })
   @Min(1, { message: 'copy_count должен быть не меньше 1' })
   copy_count?: number;
 
-  @ApiPropertyOptional({ enum: PrintReceiptTemplate, description: 'Шаблон квитанции' })
+  @ApiPropertyOptional({
+    enum: PrintReceiptTemplate,
+    description: 'Шаблон квитанции',
+  })
   @IsOptional()
   @IsEnum(PrintReceiptTemplate, { message: 'type имеет недопустимое значение' })
   type?: PrintReceiptTemplate;
 
-  @ApiPropertyOptional({ description: 'Пересоздать квитанцию даже при наличии кэша', default: false })
+  @ApiPropertyOptional({
+    description: 'Пересоздать квитанцию даже при наличии кэша',
+    default: false,
+  })
   @IsOptional()
   @IsBoolean()
   refresh?: boolean;
 }
 
 export class PrintBarcodeRequestDto {
-  @ApiProperty({ type: [PrintOrderDto], description: 'Список заказов для печати', minItems: 1 })
+  @ApiProperty({
+    type: [PrintOrderDto],
+    description: 'Список заказов для печати',
+    minItems: 1,
+  })
   @IsArray()
   @ArrayNotEmpty({ message: 'Необходимо указать хотя бы один заказ' })
   @ValidateNested({ each: true })
   @Type(() => PrintOrderDto)
   orders!: PrintOrderDto[];
 
-  @ApiPropertyOptional({ description: 'Количество копий этикетки', default: 1, minimum: 1 })
+  @ApiPropertyOptional({
+    description: 'Количество копий этикетки',
+    default: 1,
+    minimum: 1,
+  })
   @IsOptional()
   @IsInt({ message: 'copy_count должен быть целым числом' })
   @Min(1, { message: 'copy_count должен быть не меньше 1' })
   copy_count?: number;
 
-  @ApiPropertyOptional({ enum: PrintBarcodeFormat, description: 'Формат печати', default: PrintBarcodeFormat.A4 })
+  @ApiPropertyOptional({
+    enum: PrintBarcodeFormat,
+    description: 'Формат печати',
+    default: PrintBarcodeFormat.A4,
+  })
   @IsOptional()
   @IsEnum(PrintBarcodeFormat, { message: 'format имеет недопустимое значение' })
   format?: PrintBarcodeFormat;
 
-  @ApiPropertyOptional({ enum: PrintBarcodeLang, description: 'Язык печатной формы', default: PrintBarcodeLang.RUS })
+  @ApiPropertyOptional({
+    enum: PrintBarcodeLang,
+    description: 'Язык печатной формы',
+    default: PrintBarcodeLang.RUS,
+  })
   @IsOptional()
   @IsEnum(PrintBarcodeLang, { message: 'lang имеет недопустимое значение' })
   lang?: PrintBarcodeLang;
 
-  @ApiPropertyOptional({ description: 'Пересоздать этикетку даже при наличии кэша', default: false })
+  @ApiPropertyOptional({
+    description: 'Пересоздать этикетку даже при наличии кэша',
+    default: false,
+  })
   @IsOptional()
   @IsBoolean()
   refresh?: boolean;
@@ -113,7 +146,10 @@ export class PrintJobResponseDto {
   @ApiProperty({ description: 'UUID задания печати в CDEK' })
   uuid!: string;
 
-  @ApiProperty({ description: 'Отпечаток параметров запроса (SHA-256)', example: 'f3ab...' })
+  @ApiProperty({
+    description: 'Отпечаток параметров запроса (SHA-256)',
+    example: 'f3ab...',
+  })
   fingerprint!: string;
 
   @ApiProperty({ description: 'Тип печати', example: 'receipt' })
@@ -122,10 +158,16 @@ export class PrintJobResponseDto {
   @ApiProperty({ description: 'Текущий статус задания', example: 'READY' })
   status!: string;
 
-  @ApiPropertyOptional({ description: 'URL одноразовой ссылки от CDEK', nullable: true })
+  @ApiPropertyOptional({
+    description: 'URL одноразовой ссылки от CDEK',
+    nullable: true,
+  })
   downloadUrl?: string | null;
 
-  @ApiPropertyOptional({ description: 'Путь до локального файла с результатом', nullable: true })
+  @ApiPropertyOptional({
+    description: 'Путь до локального файла с результатом',
+    nullable: true,
+  })
   filePath?: string | null;
 
   @ApiPropertyOptional({ description: 'Имя локального файла', nullable: true })
@@ -134,13 +176,22 @@ export class PrintJobResponseDto {
   @ApiPropertyOptional({ description: 'Размер файла в байтах', nullable: true })
   fileSize?: number | null;
 
-  @ApiPropertyOptional({ description: 'Признак, что использован ранее сохранённый файл', default: false })
+  @ApiPropertyOptional({
+    description: 'Признак, что использован ранее сохранённый файл',
+    default: false,
+  })
   cached?: boolean;
 
-  @ApiProperty({ description: 'Дата создания кэша', example: '2025-01-01T12:00:00.000Z' })
+  @ApiProperty({
+    description: 'Дата создания кэша',
+    example: '2025-01-01T12:00:00.000Z',
+  })
   createdAt!: string;
 
-  @ApiProperty({ description: 'Дата последнего обновления кэша', example: '2025-01-01T12:00:00.000Z' })
+  @ApiProperty({
+    description: 'Дата последнего обновления кэша',
+    example: '2025-01-01T12:00:00.000Z',
+  })
   updatedAt!: string;
 }
 

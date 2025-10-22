@@ -15,7 +15,6 @@ import {
 } from 'class-validator';
 import { Type, Transform } from 'class-transformer';
 
-
 export class PhoneDto {
   @ApiProperty({ example: '+79990000000' })
   @IsString()
@@ -316,7 +315,9 @@ export class PackageItemDto {
   @ApiPropertyOptional()
   @IsOptional()
   @IsBoolean()
-  @Transform(({ value }) => (value === 'true' ? true : value === 'false' ? false : value))
+  @Transform(({ value }) =>
+    value === 'true' ? true : value === 'false' ? false : value,
+  )
   wifi_gsm?: boolean;
 
   @ApiPropertyOptional()
@@ -349,7 +350,9 @@ export class PackageItemDto {
   @ApiPropertyOptional()
   @IsOptional()
   @IsBoolean()
-  @Transform(({ value }) => (value === 'true' ? true : value === 'false' ? false : value))
+  @Transform(({ value }) =>
+    value === 'true' ? true : value === 'false' ? false : value,
+  )
   used?: boolean;
 }
 
@@ -386,16 +389,16 @@ export class PackageRequestDto {
   @ApiPropertyOptional()
   @IsOptional()
   @IsString()
-   @Transform(({ value }) => {
-  if (value === null || value === undefined) return undefined;
-  if (typeof value === 'string' && value.trim() === '') return undefined;
-  return value;
-})
+  @Transform(({ value }) => {
+    if (value === null || value === undefined) return undefined;
+    if (typeof value === 'string' && value.trim() === '') return undefined;
+    return value;
+  })
   comment?: string;
 
   @ApiPropertyOptional({ type: [PackageItemDto] })
   @IsOptional()
-@IsArray()
+  @IsArray()
   @ValidateNested({ each: true })
   @Type(() => PackageItemDto)
   items?: PackageItemDto[];
@@ -409,12 +412,18 @@ export class PackageRequestDto {
 // ======== Root DTO
 
 export class CreateCdekOrderDto {
-  @ApiProperty({ enum: [1, 2], description: '1 — интернет-магазин, 2 — доставка' })
+  @ApiProperty({
+    enum: [1, 2],
+    description: '1 — интернет-магазин, 2 — доставка',
+  })
   @Type(() => Number)
   @IsInt()
   type: number;
 
-  @ApiPropertyOptional({ type: [Number], description: 'Доп.типы заказа (например, 2,4,6,7,9,10,11,14,15)' })
+  @ApiPropertyOptional({
+    type: [Number],
+    description: 'Доп.типы заказа (например, 2,4,6,7,9,10,11,14,15)',
+  })
   @IsOptional()
   @IsArray()
   @Type(() => Number)
@@ -425,7 +434,9 @@ export class CreateCdekOrderDto {
   @IsString()
   number?: string;
 
-  @ApiPropertyOptional({ description: 'Номер сопроводительной накладной (СНТ)' })
+  @ApiPropertyOptional({
+    description: 'Номер сопроводительной накладной (СНТ)',
+  })
   @IsOptional()
   @IsString()
   accompanying_number?: string;
@@ -438,11 +449,11 @@ export class CreateCdekOrderDto {
   @ApiPropertyOptional()
   @IsOptional()
   @IsString()
-     @Transform(({ value }) => {
-  if (value === null || value === undefined) return undefined;
-  if (typeof value === 'string' && value.trim() === '') return undefined;
-  return value;
-})
+  @Transform(({ value }) => {
+    if (value === null || value === undefined) return undefined;
+    if (typeof value === 'string' && value.trim() === '') return undefined;
+    return value;
+  })
   comment?: string;
 
   @ApiPropertyOptional({ description: 'Код ПВЗ при «от склада»' })
@@ -455,33 +466,49 @@ export class CreateCdekOrderDto {
   @IsString()
   delivery_point?: string;
 
-  @ApiPropertyOptional({ type: String, format: 'date', description: 'Делает заказ международным при заполнении' })
+  @ApiPropertyOptional({
+    type: String,
+    format: 'date',
+    description: 'Делает заказ международным при заполнении',
+  })
   @IsOptional()
   @IsDateString()
   date_invoice?: string;
 
-  @ApiPropertyOptional({ description: 'Имя грузоотправителя (международные ИМ)' })
+  @ApiPropertyOptional({
+    description: 'Имя грузоотправителя (международные ИМ)',
+  })
   @IsOptional()
   @IsString()
   shipper_name?: string;
 
-  @ApiPropertyOptional({ description: 'Адрес грузоотправителя (международные ИМ)' })
+  @ApiPropertyOptional({
+    description: 'Адрес грузоотправителя (международные ИМ)',
+  })
   @IsOptional()
   @IsString()
   shipper_address?: string;
 
-  @ApiPropertyOptional({ description: 'ДСД: сумма, НДС и ставка. (Только для ИМ)' })
+  @ApiPropertyOptional({
+    description: 'ДСД: сумма, НДС и ставка. (Только для ИМ)',
+  })
   @IsOptional()
   delivery_recipient_cost?: PaymentDto;
 
-  @ApiPropertyOptional({ description: 'Пороговые ДСД (Только для ИМ)', type: [PaymentDto] })
+  @ApiPropertyOptional({
+    description: 'Пороговые ДСД (Только для ИМ)',
+    type: [PaymentDto],
+  })
   @IsOptional()
   @IsArray()
   @ValidateNested({ each: true })
   @Type(() => PaymentDto)
   delivery_recipient_cost_adv?: PaymentDto[];
 
-  @ApiPropertyOptional({ type: ContactDto, description: 'Отправитель (обязателен при type=2 «доставка»)' })
+  @ApiPropertyOptional({
+    type: ContactDto,
+    description: 'Отправитель (обязателен при type=2 «доставка»)',
+  })
   @IsOptional()
   @ValidateNested()
   @Type(() => ContactDto)
@@ -498,13 +525,19 @@ export class CreateCdekOrderDto {
   @Type(() => ContactDto)
   recipient: ContactDto;
 
-  @ApiPropertyOptional({ type: LocationDto, description: 'Адрес отправления. Конфликтует с shipment_point' })
+  @ApiPropertyOptional({
+    type: LocationDto,
+    description: 'Адрес отправления. Конфликтует с shipment_point',
+  })
   @IsOptional()
   @ValidateNested()
   @Type(() => LocationDto)
   from_location?: LocationDto;
 
-  @ApiPropertyOptional({ type: LocationDto, description: 'Адрес получения. Конфликтует с delivery_point' })
+  @ApiPropertyOptional({
+    type: LocationDto,
+    description: 'Адрес получения. Конфликтует с delivery_point',
+  })
   @IsOptional()
   @ValidateNested()
   @Type(() => LocationDto)
@@ -517,7 +550,10 @@ export class CreateCdekOrderDto {
   @Type(() => AdditionalServiceDto)
   services?: AdditionalServiceDto[];
 
-  @ApiProperty({ type: [PackageRequestDto], description: 'Список упаковок (1..255)' })
+  @ApiProperty({
+    type: [PackageRequestDto],
+    description: 'Список упаковок (1..255)',
+  })
   @IsArray()
   @ValidateNested({ each: true })
   @Type(() => PackageRequestDto)
@@ -526,13 +562,17 @@ export class CreateCdekOrderDto {
   @ApiPropertyOptional()
   @IsOptional()
   @IsBoolean()
-  @Transform(({ value }) => (value === 'true' ? true : value === 'false' ? false : value))
+  @Transform(({ value }) =>
+    value === 'true' ? true : value === 'false' ? false : value,
+  )
   is_client_return?: boolean;
 
   @ApiPropertyOptional()
   @IsOptional()
   @IsBoolean()
-  @Transform(({ value }) => (value === 'true' ? true : value === 'false' ? false : value))
+  @Transform(({ value }) =>
+    value === 'true' ? true : value === 'false' ? false : value,
+  )
   has_reverse_order?: boolean;
 
   @ApiPropertyOptional({ description: 'Ключ разработчика' })

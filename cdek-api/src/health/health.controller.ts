@@ -30,7 +30,7 @@ export class HealthController {
     try {
       // Проверяем подключение к базе данных
       await this.prismaService.$queryRaw`SELECT 1`;
-      
+
       return {
         status: 'ok',
         message: 'Service is healthy',

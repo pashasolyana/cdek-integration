@@ -1,4 +1,10 @@
-import { Injectable, Logger, HttpException, HttpStatus, OnModuleInit } from '@nestjs/common';
+import {
+  Injectable,
+  Logger,
+  HttpException,
+  HttpStatus,
+  OnModuleInit,
+} from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
 import axios, { AxiosInstance, AxiosRequestConfig } from 'axios';
 import { promises as fs, existsSync } from 'fs';
@@ -6,12 +12,24 @@ import * as path from 'path';
 import { createHash } from 'crypto';
 import { PrismaService } from '../prisma/prisma.service';
 import { CdekAuthDto, CdekTokenResponse } from './dto/auth.dto';
-import { CalcTariffListRequestDto, CalcTariffListResponseDto } from './dto/calculator.dto';
+import {
+  CalcTariffListRequestDto,
+  CalcTariffListResponseDto,
+} from './dto/calculator.dto';
 import { Prisma, CdekOfficeType } from '@prisma/client';
 import { CreateCdekOrderDto } from './dto/create-cdek-order.dto';
-import { PrintReceiptRequestDto, PrintBarcodeRequestDto, PrintJobKind, PrintJobResponseDto, PrintOrderDto } from './dto/print.dto';
+import {
+  PrintReceiptRequestDto,
+  PrintBarcodeRequestDto,
+  PrintJobKind,
+  PrintJobResponseDto,
+  PrintOrderDto,
+} from './dto/print.dto';
 import { PrintWaybillRequestDto, WaybillDto } from './dto/print-waybill.dto';
-import { PrintBarcodeRequestDto as PrintBarcodeRequestDtoV2, BarcodeDto } from './dto/print-barcode.dto';
+import {
+  PrintBarcodeRequestDto as PrintBarcodeRequestDtoV2,
+  BarcodeDto,
+} from './dto/print-barcode.dto';
 
 interface StoredPrintJobMeta extends PrintJobResponseDto {
   payload: Record<string, any>;
@@ -25,7 +43,6 @@ interface ResolvedPrintJobFile {
 }
 @Injectable()
 export class CdekService implements OnModuleInit {
- 
   private readonly logger = new Logger(CdekService.name);
   private readonly apiClient: AxiosInstance;
   private readonly cdekApiUrl: string;
@@ -38,9 +55,11 @@ export class CdekService implements OnModuleInit {
     private readonly configService: ConfigService,
     private readonly prismaService: PrismaService,
   ) {
-    this.cdekApiUrl = this.configService.get<string>('CDEK_API_URL') || 'https://api.cdek.ru';
+    this.cdekApiUrl =
+      this.configService.get<string>('CDEK_API_URL') || 'https://api.cdek.ru';
     this.clientId = this.configService.get<string>('CDEK_CLIENT_ID') || '';
-    this.clientSecret = this.configService.get<string>('CDEK_CLIENT_SECRET') || '';
+    this.clientSecret =
+      this.configService.get<string>('CDEK_CLIENT_SECRET') || '';
 
     // Настраиваем Axios клиент
     this.apiClient = axios.create({
@@ -64,7 +83,10 @@ export class CdekService implements OnModuleInit {
       await this.ensureValidToken();
       this.logger.log('CDEK сервис успешно инициализирован');
     } catch (error) {
-      this.logger.error('Ошибка при инициализации CDEK сервиса:', error.message);
+      this.logger.error(
+        'Ошибка при инициализации CDEK сервиса:',
+        error.message,
+      );
     }
   }
 
@@ -99,11 +121,11 @@ export class CdekService implements OnModuleInit {
    */
   private isTokenValid(): boolean {
     if (!this.currentToken) return false;
-    
+
     // Проверяем, не истечет ли токен в ближайшие 5 минут
-    const expirationTime = Date.now() + (this.currentToken.expires_in * 1000);
+    const expirationTime = Date.now() + this.currentToken.expires_in * 1000;
     const bufferTime = 5 * 60 * 1000; // 5 минут в миллисекундах
-    
+
     return expirationTime > Date.now() + bufferTime;
   }
 
@@ -134,10 +156,10 @@ export class CdekService implements OnModuleInit {
       // Запрашиваем новый токен от API
       const tokenData = await this.requestNewToken();
       this.currentToken = tokenData;
-      
+
       // Сохраняем в базу данных
       await this.saveToken(tokenData);
-      
+
       this.logger.log('Токен успешно обновлен');
     } catch (error) {
       this.logger.error('Ошибка при обновлении токена:', error.message);
@@ -158,7 +180,7 @@ export class CdekService implements OnModuleInit {
     };
 
     const startTime = Date.now();
-    
+
     try {
       const response = await axios.post<CdekTokenResponse>(
         `${this.cdekApiUrl}/v2/oauth/token`,
@@ -169,7 +191,7 @@ export class CdekService implements OnModuleInit {
             'User-Agent': 'CDEK-Integration/1.0',
           },
           timeout: 30000,
-        }
+        },
       );
 
       const duration = Date.now() - startTime;
@@ -191,7 +213,6 @@ export class CdekService implements OnModuleInit {
       );
     }
   }
-
 
   /**
    * Получение валидного токена из базы данных
@@ -221,22 +242,36 @@ export class CdekService implements OnModuleInit {
    */
   private async saveToken(tokenData: CdekTokenResponse) {
     try {
-      const expiresAt = new Date(Date.now() + tokenData.expires_in * 1000);
+      const rawExpiresIn = Number(tokenData.expires_in);
+      if (!Number.isFinite(rawExpiresIn) || rawExpiresIn <= 0) {
+        throw new Error(
+          `Некорректное значение expires_in: ${JSON.stringify(tokenData.expires_in)}`,
+        );
+      }
 
-      await this.prismaService.cdekToken.create({
-        data: {
-          accessToken: tokenData.access_token,
-          tokenType: tokenData.token_type,
-          expiresIn: tokenData.expires_in,
-          scope: tokenData.scope,
-          jti: tokenData.jti,
-          expiresAt,
-        },
+      const expiresAt = new Date(Date.now() + rawExpiresIn * 1000);
+      if (Number.isNaN(expiresAt.getTime())) {
+        throw new Error('Не удалось вычислить expiresAt для токена CDEK');
+      }
+
+      await this.prismaService.$transaction(async (tx) => {
+        await tx.cdekToken.deleteMany({});
+        await tx.cdekToken.create({
+          data: {
+            accessToken: tokenData.access_token,
+            tokenType: tokenData.token_type,
+            expiresIn: rawExpiresIn,
+            scope: tokenData.scope ?? undefined,
+            jti: tokenData.jti ?? undefined,
+            expiresAt,
+          },
+        });
       });
 
       this.logger.log('Токен сохранен в базу данных');
     } catch (error) {
       this.logger.error('Ошибка при сохранении токена в БД:', error.message);
+      throw error;
     }
   }
 
@@ -245,10 +280,10 @@ export class CdekService implements OnModuleInit {
    */
   async forceRefreshToken(): Promise<void> {
     this.logger.log('Принудительное обновление токена CDEK');
-    
+
     // Сбрасываем текущий токен
     this.currentToken = null;
-    
+
     // Запрашиваем новый токен
     await this.refreshToken();
   }
@@ -275,33 +310,49 @@ export class CdekService implements OnModuleInit {
     };
 
     const startTime = Date.now();
-    
+
     try {
       const response = await this.apiClient.request(config);
       const duration = Date.now() - startTime;
 
       // Логируем успешный запрос
-      await this.logApiCall(method, endpoint, data, response.data, response.status, duration, true);
+      await this.logApiCall(
+        method,
+        endpoint,
+        data,
+        response.data,
+        response.status,
+        duration,
+        true,
+      );
 
       return response.data;
     } catch (error) {
       const duration = Date.now() - startTime;
-      
+
       // Если получили 401, пробуем обновить токен и повторить запрос
       if (error.response?.status === 401) {
         this.logger.warn('Получен 401, обновляем токен и повторяем запрос');
         this.currentToken = null; // Сбрасываем текущий токен
-        
+
         try {
           await this.refreshToken();
-          
+
           // Повторяем запрос с новым токеном
           config.headers!.Authorization = `${this.currentToken!.token_type} ${this.currentToken!.access_token}`;
           const retryStartTime = Date.now();
           const retryResponse = await this.apiClient.request(config);
           const retryDuration = Date.now() - retryStartTime;
 
-          await this.logApiCall(method, endpoint, data, retryResponse.data, retryResponse.status, retryDuration, true);
+          await this.logApiCall(
+            method,
+            endpoint,
+            data,
+            retryResponse.data,
+            retryResponse.status,
+            retryDuration,
+            true,
+          );
           return retryResponse.data;
         } catch (retryError) {
           const retryDuration = Date.now() - startTime;
@@ -329,7 +380,10 @@ export class CdekService implements OnModuleInit {
         false,
       );
 
-      this.logger.error(`Ошибка при выполнении запроса ${method} ${endpoint}:`, error.message);
+      this.logger.error(
+        `Ошибка при выполнении запроса ${method} ${endpoint}:`,
+        error.message,
+      );
       throw error;
     }
   }
@@ -377,8 +431,10 @@ export class CdekService implements OnModuleInit {
             config.headers.Authorization = `${this.currentToken.token_type} ${this.currentToken.access_token}`;
           }
         }
-        
-        this.logger.debug(`Отправка запроса: ${config.method?.toUpperCase()} ${config.url}`);
+
+        this.logger.debug(
+          `Отправка запроса: ${config.method?.toUpperCase()} ${config.url}`,
+        );
         return config;
       },
       (error) => {
@@ -397,19 +453,26 @@ export class CdekService implements OnModuleInit {
       },
       async (error) => {
         const originalRequest = error.config;
-        
-        if (error.response?.status === 401 && !originalRequest._retry && !originalRequest.url?.includes('/oauth/token')) {
+
+        if (
+          error.response?.status === 401 &&
+          !originalRequest._retry &&
+          !originalRequest.url?.includes('/oauth/token')
+        ) {
           originalRequest._retry = true;
-          
+
           this.logger.warn('Получен 401, обновляем токен через интерсептор');
           this.currentToken = null; // Сбрасываем текущий токен
-          
+
           try {
             await this.refreshToken();
             originalRequest.headers.Authorization = `${this.currentToken!.token_type} ${this.currentToken!.access_token}`;
             return this.apiClient(originalRequest);
           } catch (refreshError) {
-            this.logger.error('Ошибка при обновлении токена через интерсептор:', refreshError.message);
+            this.logger.error(
+              'Ошибка при обновлении токена через интерсептор:',
+              refreshError.message,
+            );
             return Promise.reject(refreshError);
           }
         }
@@ -439,24 +502,31 @@ export class CdekService implements OnModuleInit {
     return this.apiClient.get(endpoint, { params });
   }
 
-protected async post<T = any>(path: string, data?: any, headers: Record<string, string> = {}): Promise<T> {
-  try {
-    const res = await this.apiClient.post(path, data, {
-      headers: {
-        'Content-Type': 'application/json',
-        Accept: 'application/json',
-        ...headers,
-      },
-    });
-    return res.data as T;
-  } catch (err: any) {
-    // Сохраним подробности — это поможет понять, какие поля не приняты
-    const status = err?.response?.status;
-    const payload = err?.response?.data;
-    this.logger.error(`[CDEK POST ${path}] ${status}`, JSON.stringify(payload, null, 2));
-    throw err; // не глотаем — контроллер поднимет 4xx/5xx
+  protected async post<T = any>(
+    path: string,
+    data?: any,
+    headers: Record<string, string> = {},
+  ): Promise<T> {
+    try {
+      const res = await this.apiClient.post(path, data, {
+        headers: {
+          'Content-Type': 'application/json',
+          Accept: 'application/json',
+          ...headers,
+        },
+      });
+      return res.data as T;
+    } catch (err: any) {
+      // Сохраним подробности — это поможет понять, какие поля не приняты
+      const status = err?.response?.status;
+      const payload = err?.response?.data;
+      this.logger.error(
+        `[CDEK POST ${path}] ${status}`,
+        JSON.stringify(payload, null, 2),
+      );
+      throw err; // не глотаем — контроллер поднимет 4xx/5xx
+    }
   }
-}
 
   async put(endpoint: string, data?: any) {
     return this.apiClient.put(endpoint, data);
@@ -470,7 +540,7 @@ protected async post<T = any>(path: string, data?: any, headers: Record<string, 
    * Получение информации о заказе по номеру СДЭК или ИМ
    */
   async getOrderInfo(cdekNumber?: number) {
-    if (!cdekNumber ) {
+    if (!cdekNumber) {
       throw new HttpException(
         'Необходимо указать cdek_number или im_number',
         HttpStatus.BAD_REQUEST,
@@ -481,9 +551,9 @@ protected async post<T = any>(path: string, data?: any, headers: Record<string, 
     if (cdekNumber) {
       params.cdek_number = cdekNumber;
     }
- 
+
     const response = await this.get('/v2/orders', params);
-    console.log(response)
+    console.log(response);
     return response.data;
   }
 
@@ -498,45 +568,52 @@ protected async post<T = any>(path: string, data?: any, headers: Record<string, 
   async calculateTariffList(body: CalcTariffListRequestDto) {
     this.logger.log('Запрос на расчёт тарифов:', JSON.stringify(body, null, 2));
     const response = await this.post('/v2/calculator/tarifflist', body);
-    console.log(response)
+    console.log(response);
     this.logger.log('Ответ CDEK API:', JSON.stringify(response.data, null, 2));
     return response as CalcTariffListResponseDto;
   }
 
   /** /v2/location/suggest/cities */
-async suggestCities(params: { name: string; country_codes?: string; size?: number }) {
-  const queryParams = {
-    name: params.name,
-    country_codes: params.country_codes || 'RU',
-    size: params.size || 10
-  };
-  const res = await this.get('/v2/location/suggest/cities', queryParams);
-  return res.data;
-}
+  async suggestCities(params: {
+    name: string;
+    country_codes?: string;
+    size?: number;
+  }) {
+    const queryParams = {
+      name: params.name,
+      country_codes: params.country_codes || 'RU',
+      size: params.size || 10,
+    };
+    const res = await this.get('/v2/location/suggest/cities', queryParams);
+    return res.data;
+  }
 
-/** /v2/location/regions */
-async getRegions(params: any) {
-  const res = await this.get('/v2/location/regions', params);
-  return res.data;
-}
+  /** /v2/location/regions */
+  async getRegions(params: any) {
+    const res = await this.get('/v2/location/regions', params);
+    return res.data;
+  }
 
-/** /v2/location/postalcodes */
-async getPostalCodesByCity(city_code: number) {
-  const res = await this.get('/v2/location/postalcodes', { city_code });
-  return res.data;
-}
+  /** /v2/location/postalcodes */
+  async getPostalCodesByCity(city_code: number) {
+    const res = await this.get('/v2/location/postalcodes', { city_code });
+    return res.data;
+  }
 
-/** /v2/location/geolocation */
-async getLocationByCoordinates(latitude: number, longitude: number) {
-  const res = await this.get('/v2/location/geolocation', { latitude, longitude });
-  return res.data;
-}
+  /** /v2/location/geolocation */
+  async getLocationByCoordinates(latitude: number, longitude: number) {
+    const res = await this.get('/v2/location/geolocation', {
+      latitude,
+      longitude,
+    });
+    return res.data;
+  }
 
-/** /v2/location/cities (детальная инфа о населённых пунктах) */
-async getCities(params: any) {
-  const res = await this.get('/v2/location/cities', params);
-  return res.data;
-}
+  /** /v2/location/cities (детальная инфа о населённых пунктах) */
+  async getCities(params: any) {
+    const res = await this.get('/v2/location/cities', params);
+    return res.data;
+  }
 
   /**
    * Создание заказа
@@ -558,274 +635,381 @@ async getCities(params: any) {
    * Расчет стоимости доставки
    */
   async calculateDelivery(calculationData: any) {
-    const response = await this.post('/v2/calculator/tarifflist', calculationData);
+    const response = await this.post(
+      '/v2/calculator/tarifflist',
+      calculationData,
+    );
     return response.data;
   }
 
-private toTypeEnum(t?: string): CdekOfficeType {
-  const v = (t ?? '').toString().trim().toUpperCase();
-  if (v === 'PVZ') return CdekOfficeType.PVZ;
-  if (v === 'POSTAMAT') return CdekOfficeType.POSTAMAT;
-  return CdekOfficeType.UNKNOWN;
-}
-
-private toBool(v: any): boolean | null {
-  if (v === true || v === 'true' || v === 1 || v === '1') return true;
-  if (v === false || v === 'false' || v === 0 || v === '0') return false;
-  return v == null ? null : !!v;
-}
-
-// ===== маппинг основной сущности =====
-private mapDeliveryPointToDb(dp: any) {
-  const loc = dp.location || {};
-  return {
-    uuid: dp.uuid,
-    code: dp.code,
-    ownerCode: dp.owner_code ?? null,
-    type: this.toTypeEnum(dp.type),
-
-    countryCode: loc.country_code ?? null,
-    regionCode: loc.region_code ?? null,
-    cityCode: loc.city_code ?? null,
-    city: loc.city ?? null,
-    postalCode: loc.postal_code ?? null,
-
-    latitude: loc.latitude ?? null,
-    longitude: loc.longitude ?? null,
-
-    address: loc.address ?? null,
-    addressFull: loc.address_full ?? null,
-
-    weightMin: dp.weight_min ?? null,
-    weightMax: dp.weight_max ?? null,
-
-    takeOnly: this.toBool(dp.take_only),
-    isHandout: this.toBool(dp.is_handout),
-    isReception: this.toBool(dp.is_reception),
-    isDressingRoom: this.toBool(dp.is_dressing_room),
-    isMarketplace: this.toBool(dp.is_marketplace),
-    isLtl: this.toBool(dp.is_ltl),
-    haveCashless: this.toBool(dp.have_cashless),
-    haveCash: this.toBool(dp.have_cash),
-    haveFastPaymentSystem: this.toBool(dp.have_fast_payment_system),
-    allowedCod: this.toBool(dp.allowed_cod),
-    fulfillment: this.toBool(dp.fulfillment),
-    distance: dp.distance ?? null,
-
-    lastSeenAt: new Date(),
-    deletedAt: null,
-    raw: dp,
-  };
-}
-
-// ===== маппинг детей (нормализация) =====
-private mapChildren(dp: any) {
-  const uuid = dp.uuid as string;
-  const phones = (dp.phones ?? []).map((p:any)=>({ dpUuid: uuid, number: p.number, addl: p.additional ?? null }));
-  const images = (dp.office_image_list ?? []).map((im:any)=>({ dpUuid: uuid, number: im.number ?? null, url: im.url }));
-  const workTimes = (dp.work_time_list ?? []).map((w:any)=>({ dpUuid: uuid, day: w.day, time: w.time }));
-  const exceptions = (dp.work_time_exception_list ?? []).map((e:any)=>({
-    dpUuid: uuid,
-    dateStart: new Date(e.date_start),
-    dateEnd: new Date(e.date_end),
-    timeStart: e.time_start ?? null,
-    timeEnd: e.time_end ?? null,
-    isWorking: !!e.is_working,
-  }));
-  const dimensions = (dp.dimensions ?? []).map((d:any)=>({ dpUuid: uuid, width: d.width, height: d.height, depth: d.depth }));
-  return { phones, images, workTimes, exceptions, dimensions };
-}
-
-// ===== загрузка одной страницы из API =====
-private async fetchDeliveryPointsPage(params: any, page: number, size = 1000) {
-  const p = { type: 'ALL', size, page, ...params };
-  const res = await this.get('/v2/deliverypoints', p);
-  return Array.isArray(res.data) ? res.data : [];
-}
-
-// ===== основной синк =====
-async syncDeliveryPoints(params: any = {}) {
-  const overallStartTime = Date.now();
-  const startedAt = new Date();
-  let page = 0;
-  let total = 0;
-  const pageSize = 1000; // размер страницы API (максимум разумный)
-  const batchSize = 100; // размер пакета для сохранения в БД
-  const maxRecords = params.maxRecords || 200000; // ограничение на количество записей (по умолчанию 200к)
-
-  this.logger.log('🚀 Начало синхронизации пунктов выдачи CDEK');
-  this.logger.log(`⚙️  Настройки: размер страницы API=${pageSize}, размер пакета БД=${batchSize}, лимит записей=${maxRecords}`);
-  
-  // Очищаем все данные
-  this.logger.log('🗑️  Этап 1/2: Очистка существующих данных...');
-  const cleanupStart = Date.now();
-  await this.prismaService.$transaction(async (tx) => {
-    await tx.cdekDPPhone.deleteMany({});
-    this.logger.log('  ✓ Удалены телефоны');
-    await tx.cdekDPImage.deleteMany({});
-    this.logger.log('  ✓ Удалены изображения');
-    await tx.cdekDPWorkTime.deleteMany({});
-    this.logger.log('  ✓ Удалено расписание работы');
-    await tx.cdekDPWorkTimeException.deleteMany({});
-    this.logger.log('  ✓ Удалены исключения в расписании');
-    await tx.cdekDPDimension.deleteMany({});
-    this.logger.log('  ✓ Удалены габариты');
-    await tx.cdekDeliveryPoint.deleteMany({});
-    this.logger.log('  ✓ Удалены пункты выдачи');
-  });
-  const cleanupDuration = ((Date.now() - cleanupStart) / 1000).toFixed(2);
-  this.logger.log(`✅ Очистка завершена за ${cleanupDuration}с`);
-
-  // Загружаем и сохраняем порциями (не храним всё в памяти!)
-  this.logger.log('📥 Этап 2/2: Загрузка и сохранение данных (потоковая обработка)...');
-  const processStart = Date.now();
-  
-  while (true) {
-    const pageStart = Date.now();
-    this.logger.log(`\n  📄 Страница ${page + 1}: загрузка из CDEK API (размер: ${pageSize})...`);
-    
-    const apiData = await this.fetchDeliveryPointsPage(params, page, pageSize);
-    if (!apiData.length) {
-      this.logger.log(`  ℹ️  Страница ${page + 1} пуста - обработка завершена`);
-      break;
-    }
-    
-    const pageDuration = ((Date.now() - pageStart) / 1000).toFixed(2);
-    this.logger.log(`  ✓ Загружено ${apiData.length} записей за ${pageDuration}с`);
-    
-    // Обрезаем данные, если превышаем лимит (ПЕРЕД сохранением!)
-    const remainingSlots = maxRecords - total;
-    if (remainingSlots <= 0) {
-      this.logger.log(`  ⚠️  Достигнут лимит записей (${maxRecords}) - остановка загрузки`);
-      break;
-    }
-    
-    const dataToSave = remainingSlots < apiData.length ? apiData.slice(0, remainingSlots) : apiData;
-    const totalBatches = Math.ceil(dataToSave.length / batchSize);
-    
-    // Сразу сохраняем эту страницу пакетами
-    this.logger.log(`  💾 Сохранение страницы ${page + 1} в БД пакетами по ${batchSize} (будет сохранено: ${dataToSave.length})...`);
-    
-    for (let i = 0; i < dataToSave.length; i += batchSize) {
-      const batchNumber = Math.floor(i / batchSize) + 1;
-      const batchStart = Date.now();
-      const batch = dataToSave.slice(i, i + batchSize);
-      
-      await this.prismaService.$transaction(async (tx) => {
-        const deliveryPointsData: any[] = [];
-        const phonesData: any[] = [];
-        const imagesData: any[] = [];
-        const workTimesData: any[] = [];
-        const exceptionsData: any[] = [];
-        const dimensionsData: any[] = [];
-
-        for (const dp of batch) {
-          const base = this.mapDeliveryPointToDb(dp);
-          deliveryPointsData.push(base);
-
-          const ch = this.mapChildren(dp);
-          phonesData.push(...ch.phones);
-          imagesData.push(...ch.images);
-          workTimesData.push(...ch.workTimes);
-          exceptionsData.push(...ch.exceptions);
-          dimensionsData.push(...ch.dimensions);
-        }
-
-        // Массовые вставки (skipDuplicates для избежания конфликтов)
-        if (deliveryPointsData.length) await tx.cdekDeliveryPoint.createMany({ data: deliveryPointsData, skipDuplicates: true });
-        if (phonesData.length)         await tx.cdekDPPhone.createMany({ data: phonesData, skipDuplicates: true });
-        if (imagesData.length)         await tx.cdekDPImage.createMany({ data: imagesData, skipDuplicates: true });
-        if (workTimesData.length)      await tx.cdekDPWorkTime.createMany({ data: workTimesData, skipDuplicates: true });
-        if (exceptionsData.length)     await tx.cdekDPWorkTimeException.createMany({ data: exceptionsData, skipDuplicates: true });
-        if (dimensionsData.length)     await tx.cdekDPDimension.createMany({ data: dimensionsData, skipDuplicates: true });
-      });
-
-      total += batch.length;
-      const batchDuration = ((Date.now() - batchStart) / 1000).toFixed(2);
-      this.logger.log(`    ✓ Пакет ${batchNumber}/${totalBatches}: сохранено ${batch.length} записей за ${batchDuration}с (всего: ${total})`);
-    }
-    
-    const pageFullDuration = ((Date.now() - pageStart) / 1000).toFixed(2);
-    this.logger.log(`  ✅ Страница ${page + 1} полностью обработана за ${pageFullDuration}с`);
-    
-    page += 1;
-    
-    // Если достигли лимита, выходим
-    if (total >= maxRecords) {
-      this.logger.log(`  ⚠️  Достигнут лимит записей (${maxRecords}) - остановка`);
-      break;
-    }
-    
-    // Небольшая пауза между страницами
-    await new Promise(r => setTimeout(r, 150));
+  private toTypeEnum(t?: string): CdekOfficeType {
+    const v = (t ?? '').toString().trim().toUpperCase();
+    if (v === 'PVZ') return CdekOfficeType.PVZ;
+    if (v === 'POSTAMAT') return CdekOfficeType.POSTAMAT;
+    return CdekOfficeType.UNKNOWN;
   }
 
-  const processDuration = ((Date.now() - processStart) / 1000).toFixed(2);
-  const totalDuration = ((Date.now() - overallStartTime) / 1000).toFixed(2);
-  const avgSpeed = total / (Number(processDuration) / 60);
-  
-  this.logger.log(`\n🎉 Синхронизация успешно завершена!`);
-  this.logger.log(`   📊 Создано записей: ${total}`);
-  this.logger.log(`   📄 Обработано страниц: ${page}`);
-  this.logger.log(`   ⏱️  Общее время: ${totalDuration}с (очистка: ${cleanupDuration}с, обработка: ${processDuration}с)`);
-  this.logger.log(`   ⚡ Средняя скорость: ${avgSpeed.toFixed(0)} записей/мин`);
-  
-  return { created: total, removed: 0 };
-}
-
-// ===== чтение с фильтрами и bbox =====
-async listFromDb(opts: {
-  type?: 'PVZ'|'POSTAMAT'|'UNKNOWN';
-  city_code?: number;
-  q?: string;
-  lat_min?: number; lat_max?: number;
-  lon_min?: number; lon_max?: number;
-  limit?: number; offset?: number;
-}) {
-  const { type, city_code, q, lat_min, lat_max, lon_min, lon_max, limit=100, offset=0 } = opts;
-
-  const where: any = { deletedAt: null };
-  if (type) where.type = type;
-  if (city_code != null) where.cityCode = Number(city_code);
-  if (q) where.OR = [
-    { address: { contains: q, mode: 'insensitive' } },
-    { addressFull: { contains: q, mode: 'insensitive' } },
-    { code: { contains: q, mode: 'insensitive' } },
-    { city: { contains: q, mode: 'insensitive' } },
-  ];
-  if ([lat_min,lat_max,lon_min,lon_max].every(v => typeof v === 'number')) {
-    // Автоматически меняем местами min/max, если перепутаны
-    const actualLatMin = Math.min(lat_min!, lat_max!);
-    const actualLatMax = Math.max(lat_min!, lat_max!);
-    const actualLonMin = Math.min(lon_min!, lon_max!);
-    const actualLonMax = Math.max(lon_min!, lon_max!);
-    
-    where.AND = [
-      { latitude:  { gte: actualLatMin } },
-      { latitude:  { lte: actualLatMax } },
-      { longitude: { gte: actualLonMin } },
-      { longitude: { lte: actualLonMax } },
-    ];
+  private toBool(v: any): boolean | null {
+    if (v === true || v === 'true' || v === 1 || v === '1') return true;
+    if (v === false || v === 'false' || v === 0 || v === '0') return false;
+    return v == null ? null : !!v;
   }
 
-  const [rows, total] = await this.prismaService.$transaction([
-    this.prismaService.cdekDeliveryPoint.findMany({
-      where,
-      orderBy: [{ cityCode: 'asc' }, { type: 'asc' }, { code: 'asc' }],
-      take: Math.min(Number(limit), 1000),
-      skip: Number(offset),
-      include: { phones: true, images: true, workTimes: true, exceptions: true, dimensions: true },
-    }),
-    this.prismaService.cdekDeliveryPoint.count({ where }),
-  ]);
-  return { total, rows };
-}
+  // ===== маппинг основной сущности =====
+  private mapDeliveryPointToDb(dp: any) {
+    const loc = dp.location || {};
+    return {
+      uuid: dp.uuid,
+      code: dp.code,
+      ownerCode: dp.owner_code ?? null,
+      type: this.toTypeEnum(dp.type),
 
-// ===== поиск по радиусу (PostGIS быстрая ветка) =====
-async listWithinRadiusPostGIS(center_lat: number, center_lon: number, radius_km: number, limit=100, offset=0) {
-  const meters = radius_km * 1000;
-  // distance_m вернём наружу, чтобы сортировать
-  const rows: any[] = await this.prismaService.$queryRaw`
+      countryCode: loc.country_code ?? null,
+      regionCode: loc.region_code ?? null,
+      cityCode: loc.city_code ?? null,
+      city: loc.city ?? null,
+      postalCode: loc.postal_code ?? null,
+
+      latitude: loc.latitude ?? null,
+      longitude: loc.longitude ?? null,
+
+      address: loc.address ?? null,
+      addressFull: loc.address_full ?? null,
+
+      weightMin: dp.weight_min ?? null,
+      weightMax: dp.weight_max ?? null,
+
+      takeOnly: this.toBool(dp.take_only),
+      isHandout: this.toBool(dp.is_handout),
+      isReception: this.toBool(dp.is_reception),
+      isDressingRoom: this.toBool(dp.is_dressing_room),
+      isMarketplace: this.toBool(dp.is_marketplace),
+      isLtl: this.toBool(dp.is_ltl),
+      haveCashless: this.toBool(dp.have_cashless),
+      haveCash: this.toBool(dp.have_cash),
+      haveFastPaymentSystem: this.toBool(dp.have_fast_payment_system),
+      allowedCod: this.toBool(dp.allowed_cod),
+      fulfillment: this.toBool(dp.fulfillment),
+      distance: dp.distance ?? null,
+
+      lastSeenAt: new Date(),
+      deletedAt: null,
+      raw: dp,
+    };
+  }
+
+  // ===== маппинг детей (нормализация) =====
+  private mapChildren(dp: any) {
+    const uuid = dp.uuid as string;
+    const phones = (dp.phones ?? []).map((p: any) => ({
+      dpUuid: uuid,
+      number: p.number,
+      addl: p.additional ?? null,
+    }));
+    const images = (dp.office_image_list ?? []).map((im: any) => ({
+      dpUuid: uuid,
+      number: im.number ?? null,
+      url: im.url,
+    }));
+    const workTimes = (dp.work_time_list ?? []).map((w: any) => ({
+      dpUuid: uuid,
+      day: w.day,
+      time: w.time,
+    }));
+    const exceptions = (dp.work_time_exception_list ?? []).map((e: any) => ({
+      dpUuid: uuid,
+      dateStart: new Date(e.date_start),
+      dateEnd: new Date(e.date_end),
+      timeStart: e.time_start ?? null,
+      timeEnd: e.time_end ?? null,
+      isWorking: !!e.is_working,
+    }));
+    const dimensions = (dp.dimensions ?? []).map((d: any) => ({
+      dpUuid: uuid,
+      width: d.width,
+      height: d.height,
+      depth: d.depth,
+    }));
+    return { phones, images, workTimes, exceptions, dimensions };
+  }
+
+  // ===== загрузка одной страницы из API =====
+  private async fetchDeliveryPointsPage(
+    params: any,
+    page: number,
+    size = 1000,
+  ) {
+    const p = { type: 'ALL', size, page, ...params };
+    const res = await this.get('/v2/deliverypoints', p);
+    return Array.isArray(res.data) ? res.data : [];
+  }
+
+  // ===== основной синк =====
+  async syncDeliveryPoints(params: any = {}) {
+    const overallStartTime = Date.now();
+    const startedAt = new Date();
+    let page = 0;
+    let total = 0;
+    const pageSize = 1000; // размер страницы API (максимум разумный)
+    const batchSize = 100; // размер пакета для сохранения в БД
+    const maxRecords = params.maxRecords || 200000; // ограничение на количество записей (по умолчанию 200к)
+
+    this.logger.log('🚀 Начало синхронизации пунктов выдачи CDEK');
+    this.logger.log(
+      `⚙️  Настройки: размер страницы API=${pageSize}, размер пакета БД=${batchSize}, лимит записей=${maxRecords}`,
+    );
+
+    // Очищаем все данные
+    this.logger.log('🗑️  Этап 1/2: Очистка существующих данных...');
+    const cleanupStart = Date.now();
+    await this.prismaService.$transaction(async (tx) => {
+      await tx.cdekDPPhone.deleteMany({});
+      this.logger.log('  ✓ Удалены телефоны');
+      await tx.cdekDPImage.deleteMany({});
+      this.logger.log('  ✓ Удалены изображения');
+      await tx.cdekDPWorkTime.deleteMany({});
+      this.logger.log('  ✓ Удалено расписание работы');
+      await tx.cdekDPWorkTimeException.deleteMany({});
+      this.logger.log('  ✓ Удалены исключения в расписании');
+      await tx.cdekDPDimension.deleteMany({});
+      this.logger.log('  ✓ Удалены габариты');
+      await tx.cdekDeliveryPoint.deleteMany({});
+      this.logger.log('  ✓ Удалены пункты выдачи');
+    });
+    const cleanupDuration = ((Date.now() - cleanupStart) / 1000).toFixed(2);
+    this.logger.log(`✅ Очистка завершена за ${cleanupDuration}с`);
+
+    // Загружаем и сохраняем порциями (не храним всё в памяти!)
+    this.logger.log(
+      '📥 Этап 2/2: Загрузка и сохранение данных (потоковая обработка)...',
+    );
+    const processStart = Date.now();
+
+    while (true) {
+      const pageStart = Date.now();
+      this.logger.log(
+        `\n  📄 Страница ${page + 1}: загрузка из CDEK API (размер: ${pageSize})...`,
+      );
+
+      const apiData = await this.fetchDeliveryPointsPage(
+        params,
+        page,
+        pageSize,
+      );
+      if (!apiData.length) {
+        this.logger.log(
+          `  ℹ️  Страница ${page + 1} пуста - обработка завершена`,
+        );
+        break;
+      }
+
+      const pageDuration = ((Date.now() - pageStart) / 1000).toFixed(2);
+      this.logger.log(
+        `  ✓ Загружено ${apiData.length} записей за ${pageDuration}с`,
+      );
+
+      // Обрезаем данные, если превышаем лимит (ПЕРЕД сохранением!)
+      const remainingSlots = maxRecords - total;
+      if (remainingSlots <= 0) {
+        this.logger.log(
+          `  ⚠️  Достигнут лимит записей (${maxRecords}) - остановка загрузки`,
+        );
+        break;
+      }
+
+      const dataToSave =
+        remainingSlots < apiData.length
+          ? apiData.slice(0, remainingSlots)
+          : apiData;
+      const totalBatches = Math.ceil(dataToSave.length / batchSize);
+
+      // Сразу сохраняем эту страницу пакетами
+      this.logger.log(
+        `  💾 Сохранение страницы ${page + 1} в БД пакетами по ${batchSize} (будет сохранено: ${dataToSave.length})...`,
+      );
+
+      for (let i = 0; i < dataToSave.length; i += batchSize) {
+        const batchNumber = Math.floor(i / batchSize) + 1;
+        const batchStart = Date.now();
+        const batch = dataToSave.slice(i, i + batchSize);
+
+        await this.prismaService.$transaction(async (tx) => {
+          const deliveryPointsData: any[] = [];
+          const phonesData: any[] = [];
+          const imagesData: any[] = [];
+          const workTimesData: any[] = [];
+          const exceptionsData: any[] = [];
+          const dimensionsData: any[] = [];
+
+          for (const dp of batch) {
+            const base = this.mapDeliveryPointToDb(dp);
+            deliveryPointsData.push(base);
+
+            const ch = this.mapChildren(dp);
+            phonesData.push(...ch.phones);
+            imagesData.push(...ch.images);
+            workTimesData.push(...ch.workTimes);
+            exceptionsData.push(...ch.exceptions);
+            dimensionsData.push(...ch.dimensions);
+          }
+
+          // Массовые вставки (skipDuplicates для избежания конфликтов)
+          if (deliveryPointsData.length)
+            await tx.cdekDeliveryPoint.createMany({
+              data: deliveryPointsData,
+              skipDuplicates: true,
+            });
+          if (phonesData.length)
+            await tx.cdekDPPhone.createMany({
+              data: phonesData,
+              skipDuplicates: true,
+            });
+          if (imagesData.length)
+            await tx.cdekDPImage.createMany({
+              data: imagesData,
+              skipDuplicates: true,
+            });
+          if (workTimesData.length)
+            await tx.cdekDPWorkTime.createMany({
+              data: workTimesData,
+              skipDuplicates: true,
+            });
+          if (exceptionsData.length)
+            await tx.cdekDPWorkTimeException.createMany({
+              data: exceptionsData,
+              skipDuplicates: true,
+            });
+          if (dimensionsData.length)
+            await tx.cdekDPDimension.createMany({
+              data: dimensionsData,
+              skipDuplicates: true,
+            });
+        });
+
+        total += batch.length;
+        const batchDuration = ((Date.now() - batchStart) / 1000).toFixed(2);
+        this.logger.log(
+          `    ✓ Пакет ${batchNumber}/${totalBatches}: сохранено ${batch.length} записей за ${batchDuration}с (всего: ${total})`,
+        );
+      }
+
+      const pageFullDuration = ((Date.now() - pageStart) / 1000).toFixed(2);
+      this.logger.log(
+        `  ✅ Страница ${page + 1} полностью обработана за ${pageFullDuration}с`,
+      );
+
+      page += 1;
+
+      // Если достигли лимита, выходим
+      if (total >= maxRecords) {
+        this.logger.log(
+          `  ⚠️  Достигнут лимит записей (${maxRecords}) - остановка`,
+        );
+        break;
+      }
+
+      // Небольшая пауза между страницами
+      await new Promise((r) => setTimeout(r, 150));
+    }
+
+    const processDuration = ((Date.now() - processStart) / 1000).toFixed(2);
+    const totalDuration = ((Date.now() - overallStartTime) / 1000).toFixed(2);
+    const avgSpeed = total / (Number(processDuration) / 60);
+
+    this.logger.log(`\n🎉 Синхронизация успешно завершена!`);
+    this.logger.log(`   📊 Создано записей: ${total}`);
+    this.logger.log(`   📄 Обработано страниц: ${page}`);
+    this.logger.log(
+      `   ⏱️  Общее время: ${totalDuration}с (очистка: ${cleanupDuration}с, обработка: ${processDuration}с)`,
+    );
+    this.logger.log(
+      `   ⚡ Средняя скорость: ${avgSpeed.toFixed(0)} записей/мин`,
+    );
+
+    return { created: total, removed: 0 };
+  }
+
+  // ===== чтение с фильтрами и bbox =====
+  async listFromDb(opts: {
+    type?: 'PVZ' | 'POSTAMAT' | 'UNKNOWN';
+    city_code?: number;
+    q?: string;
+    lat_min?: number;
+    lat_max?: number;
+    lon_min?: number;
+    lon_max?: number;
+    limit?: number;
+    offset?: number;
+  }) {
+    const {
+      type,
+      city_code,
+      q,
+      lat_min,
+      lat_max,
+      lon_min,
+      lon_max,
+      limit = 100,
+      offset = 0,
+    } = opts;
+
+    const where: any = { deletedAt: null };
+    if (type) where.type = type;
+    if (city_code != null) where.cityCode = Number(city_code);
+    if (q)
+      where.OR = [
+        { address: { contains: q, mode: 'insensitive' } },
+        { addressFull: { contains: q, mode: 'insensitive' } },
+        { code: { contains: q, mode: 'insensitive' } },
+        { city: { contains: q, mode: 'insensitive' } },
+      ];
+    if (
+      [lat_min, lat_max, lon_min, lon_max].every((v) => typeof v === 'number')
+    ) {
+      // Автоматически меняем местами min/max, если перепутаны
+      const actualLatMin = Math.min(lat_min!, lat_max!);
+      const actualLatMax = Math.max(lat_min!, lat_max!);
+      const actualLonMin = Math.min(lon_min!, lon_max!);
+      const actualLonMax = Math.max(lon_min!, lon_max!);
+
+      where.AND = [
+        { latitude: { gte: actualLatMin } },
+        { latitude: { lte: actualLatMax } },
+        { longitude: { gte: actualLonMin } },
+        { longitude: { lte: actualLonMax } },
+      ];
+    }
+
+    const [rows, total] = await this.prismaService.$transaction([
+      this.prismaService.cdekDeliveryPoint.findMany({
+        where,
+        orderBy: [{ cityCode: 'asc' }, { type: 'asc' }, { code: 'asc' }],
+        take: Math.min(Number(limit), 1000),
+        skip: Number(offset),
+        include: {
+          phones: true,
+          images: true,
+          workTimes: true,
+          exceptions: true,
+          dimensions: true,
+        },
+      }),
+      this.prismaService.cdekDeliveryPoint.count({ where }),
+    ]);
+    return { total, rows };
+  }
+
+  // ===== поиск по радиусу (PostGIS быстрая ветка) =====
+  async listWithinRadiusPostGIS(
+    center_lat: number,
+    center_lon: number,
+    radius_km: number,
+    limit = 100,
+    offset = 0,
+  ) {
+    const meters = radius_km * 1000;
+    // distance_m вернём наружу, чтобы сортировать
+    const rows: any[] = await this.prismaService.$queryRaw`
     SELECT *, 
       ST_Distance("geo", ST_SetSRID(ST_MakePoint(${center_lon}, ${center_lat}),4326)::geography) AS distance_m
     FROM "CdekDeliveryPoint"
@@ -835,26 +1019,34 @@ async listWithinRadiusPostGIS(center_lat: number, center_lon: number, radius_km:
     ORDER BY distance_m ASC
     LIMIT ${limit} OFFSET ${offset};
   `;
-  // total (примерно) посчитаем отдельным запросом
-  const [{ count }]: any = await this.prismaService.$queryRaw`
+    // total (примерно) посчитаем отдельным запросом
+    const [{ count }]: any = await this.prismaService.$queryRaw`
     SELECT COUNT(*)::int AS count
     FROM "CdekDeliveryPoint"
     WHERE "deletedAt" IS NULL
       AND "geo" IS NOT NULL
       AND ST_DWithin("geo", ST_SetSRID(ST_MakePoint(${center_lon}, ${center_lat}),4326)::geography, ${meters});
   `;
-  return { total: count, rows };
-}
+    return { total: count, rows };
+  }
 
-// ===== поиск по радиусу (fallback без PostGIS, Haversine) =====
-async listWithinRadiusHaversine(center_lat: number, center_lon: number, radius_km: number, limit=100, offset=0) {
-  // сначала узкий bbox (для ускорения), потом точная формула
-  const dLat = radius_km / 111.32;
-  const dLon = radius_km / (111.32 * Math.cos(center_lat * Math.PI/180));
-  const latMin = center_lat - dLat, latMax = center_lat + dLat;
-  const lonMin = center_lon - dLon, lonMax = center_lon + dLon;
+  // ===== поиск по радиусу (fallback без PostGIS, Haversine) =====
+  async listWithinRadiusHaversine(
+    center_lat: number,
+    center_lon: number,
+    radius_km: number,
+    limit = 100,
+    offset = 0,
+  ) {
+    // сначала узкий bbox (для ускорения), потом точная формула
+    const dLat = radius_km / 111.32;
+    const dLon = radius_km / (111.32 * Math.cos((center_lat * Math.PI) / 180));
+    const latMin = center_lat - dLat,
+      latMax = center_lat + dLat;
+    const lonMin = center_lon - dLon,
+      lonMax = center_lon + dLon;
 
-  const rows: any[] = await this.prismaService.$queryRaw`
+    const rows: any[] = await this.prismaService.$queryRaw`
     SELECT *,
       (6371 * acos(
         cos(radians(${center_lat})) * cos(radians("latitude")) *
@@ -870,7 +1062,7 @@ async listWithinRadiusHaversine(center_lat: number, center_lon: number, radius_k
     LIMIT ${limit} OFFSET ${offset};
   `;
 
-  const [{ count }]: any = await this.prismaService.$queryRaw`
+    const [{ count }]: any = await this.prismaService.$queryRaw`
     SELECT COUNT(*)::int AS count
     FROM "CdekDeliveryPoint"
     WHERE "deletedAt" IS NULL
@@ -883,51 +1075,56 @@ async listWithinRadiusHaversine(center_lat: number, center_lon: number, radius_k
         sin(radians(${center_lat})) * sin(radians("latitude"))
       )) <= ${radius_km};
   `;
-  return { total: count, rows };
-}
+    return { total: count, rows };
+  }
 
- async registerOrder(dto: CreateCdekOrderDto) {
+  async registerOrder(dto: CreateCdekOrderDto) {
     // 1) Вызов внешнего API
     const plain = JSON.parse(JSON.stringify(dto));
-let payload = this._cleanPayload(plain);
+    const payload = this._cleanPayload(plain);
 
-// 👇 Жёсткий хотфикс: гарантированно непустой comment у каждого пакета
-if (Array.isArray(payload.packages)) {
-  payload.packages = payload.packages.map((p: any) => {
-    if (!p) return p;
-    if (
-      !('comment' in p) ||
-      p.comment === null ||
-      (typeof p.comment === 'string' && p.comment.trim() === '')
-    ) {
-      p.comment = '-'; // ставим непустое значение
+    // 👇 Жёсткий хотфикс: гарантированно непустой comment у каждого пакета
+    if (Array.isArray(payload.packages)) {
+      payload.packages = payload.packages.map((p: any) => {
+        if (!p) return p;
+        if (
+          !('comment' in p) ||
+          p.comment === null ||
+          (typeof p.comment === 'string' && p.comment.trim() === '')
+        ) {
+          p.comment = '-'; // ставим непустое значение
+        }
+        return p;
+      });
     }
-    return p;
-  });
-}
 
-// Лог: что именно улетает
-this.logger.debug(
-  'Outbound payload.packages[0]: ' + JSON.stringify(payload?.packages?.[0], null, 2),
-);
+    // Лог: что именно улетает
+    this.logger.debug(
+      'Outbound payload.packages[0]: ' +
+        JSON.stringify(payload?.packages?.[0], null, 2),
+    );
 
-// developer-key в заголовки при необходимости
-const headers: Record<string, string> = {};
+    // developer-key в заголовки при необходимости
+    const headers: Record<string, string> = {};
 
-
-// Отправка
-const apiResponse: any = await this.post('/v2/orders', payload, headers);
-
+    // Отправка
+    const apiResponse: any = await this.post('/v2/orders', payload, headers);
 
     const entityUuid: string | undefined = apiResponse?.entity?.uuid;
-    const requests = Array.isArray(apiResponse?.requests) ? apiResponse.requests : [];
-    const related = Array.isArray(apiResponse?.related_entities) ? apiResponse.related_entities : [];
+    const requests = Array.isArray(apiResponse?.requests)
+      ? apiResponse.requests
+      : [];
+    const related = Array.isArray(apiResponse?.related_entities)
+      ? apiResponse.related_entities
+      : [];
 
     // 2) Подготовка «шапки» заказа для БД
     const head: Prisma.CdekOrderCreateInput = {
       uuid: entityUuid ?? null,
       type: Number(dto.type),
-      additionalTypes: Array.isArray(dto.additional_order_types) ? dto.additional_order_types : [],
+      additionalTypes: Array.isArray(dto.additional_order_types)
+        ? dto.additional_order_types
+        : [],
       number: dto.number ?? null,
       accompanyingNumber: dto.accompanying_number ?? null,
       tariffCode: Number(dto.tariff_code),
@@ -938,26 +1135,30 @@ const apiResponse: any = await this.post('/v2/orders', payload, headers);
       shipperName: dto.shipper_name ?? null,
       shipperAddress: dto.shipper_address ?? null,
 
-      isClientReturn: typeof dto.is_client_return === 'boolean' ? dto.is_client_return : null,
-      hasReverseOrder: typeof dto.has_reverse_order === 'boolean' ? dto.has_reverse_order : null,
+      isClientReturn:
+        typeof dto.is_client_return === 'boolean' ? dto.is_client_return : null,
+      hasReverseOrder:
+        typeof dto.has_reverse_order === 'boolean'
+          ? dto.has_reverse_order
+          : null,
 
       developerKey: dto.developer_key ?? null,
       printType: dto.print ?? null,
       widgetToken: dto.widget_token ?? null,
 
       // JSON-поля — через _j(), чтобы не класть null
-      senderJson:        this._j(dto.sender),
-      recipientJson:     this._j(dto.recipient),
-      fromLocationJson:  this._j(dto.from_location),
-      toLocationJson:    this._j(dto.to_location),
-      servicesJson:      this._j(dto.services),
+      senderJson: this._j(dto.sender),
+      recipientJson: this._j(dto.recipient),
+      fromLocationJson: this._j(dto.from_location),
+      toLocationJson: this._j(dto.to_location),
+      servicesJson: this._j(dto.services),
 
       // обязательные JSON — тут точно не null
-      rawRequest:  dto as unknown as Prisma.InputJsonValue,
+      rawRequest: dto as unknown as Prisma.InputJsonValue,
       rawResponse: apiResponse as unknown as Prisma.InputJsonValue,
 
       requestState: requests[0]?.state ?? null,
-      statusNote:   requests[0]?.type ?? null,
+      statusNote: requests[0]?.type ?? null,
     };
 
     const packages = Array.isArray(dto.packages) ? dto.packages : [];
@@ -975,7 +1176,7 @@ const apiResponse: any = await this.post('/v2/orders', payload, headers);
             number: p?.number ?? null,
             weight: this._n(p?.weight),
             length: this._n(p?.length),
-            width:  this._n(p?.width),
+            width: this._n(p?.width),
             height: this._n(p?.height),
             comment: p?.comment ?? null,
             packageId: p?.package_id ?? null,
@@ -1043,7 +1244,9 @@ const apiResponse: any = await this.post('/v2/orders', payload, headers);
         });
 
         // Если появился cdek_number — обновим шапку
-        const firstCdekNumber = related.find((x: any) => x?.cdek_number)?.cdek_number;
+        const firstCdekNumber = related.find(
+          (x: any) => x?.cdek_number,
+        )?.cdek_number;
         if (firstCdekNumber) {
           await tx.cdekOrder.update({
             where: { id: order.id },
@@ -1058,8 +1261,11 @@ const apiResponse: any = await this.post('/v2/orders', payload, headers);
     // 4) Запускаем фоновое обновление информации о заказе (не блокируем ответ)
     if (entityUuid) {
       // Запускаем асинхронное обновление в фоне
-      this.scheduleOrderUpdate(savedOrder.id, entityUuid).catch(err => {
-        this.logger.error(`Фоновое обновление заказа ${entityUuid} завершилось с ошибкой:`, err.message);
+      this.scheduleOrderUpdate(savedOrder.id, entityUuid).catch((err) => {
+        this.logger.error(
+          `Фоновое обновление заказа ${entityUuid} завершилось с ошибкой:`,
+          err.message,
+        );
       });
     }
 
@@ -1078,48 +1284,59 @@ const apiResponse: any = await this.post('/v2/orders', payload, headers);
    * Проверяет заказ через 5, 10, 20 и 30 секунд после создания
    */
   private async scheduleOrderUpdate(orderId: number, uuid: string) {
-  const delays = [5000, 10000, 20000, 30000]; // 5, 10, 20, 30 секунд
-  const maxAttempts = 4;
-  
-  for (let attempt = 0; attempt < maxAttempts; attempt++) {
-    const delay = delays[attempt];
-    
-    // Ждем указанное время
-    await new Promise(resolve => setTimeout(resolve, delay));
-    
-    try {
-      this.logger.log(`[Попытка ${attempt + 1}/${maxAttempts}] Обновление заказа ${uuid} через ${delay/1000}с...`);
-      
-      // Получаем актуальную информацию из CDEK API
-      const fullOrderInfo = await this.getOrder(uuid);
-      const cdekNumber = fullOrderInfo?.entity?.cdek_number;
-      const statuses = Array.isArray(fullOrderInfo?.entity?.statuses) 
-        ? fullOrderInfo.entity.statuses 
-        : [];
-      
-      // Если получили cdek_number - обновляем БД и завершаем попытки
-      if (cdekNumber) {
-        await this.prismaService.cdekOrder.update({
-          where: { id: orderId },
-          data: {
-            cdekNumber: cdekNumber,
-            rawResponse: fullOrderInfo as unknown as Prisma.InputJsonValue,
-            requestState: fullOrderInfo?.requests?.[0]?.state ?? undefined,
-            statusNote: statuses[0]?.code ?? undefined,
-          },
-        });
-        
-        this.logger.log(`✅ Заказ ${uuid} успешно обновлен: cdek_number=${cdekNumber}, статусов=${statuses.length}`);
-        return; // Успешно получили cdek_number, выходим
-      } else {
-        this.logger.warn(`⏳ Попытка ${attempt + 1}: cdek_number еще не присвоен для заказа ${uuid}`);
+    const delays = [5000, 10000, 20000, 30000]; // 5, 10, 20, 30 секунд
+    const maxAttempts = 4;
+
+    for (let attempt = 0; attempt < maxAttempts; attempt++) {
+      const delay = delays[attempt];
+
+      // Ждем указанное время
+      await new Promise((resolve) => setTimeout(resolve, delay));
+
+      try {
+        this.logger.log(
+          `[Попытка ${attempt + 1}/${maxAttempts}] Обновление заказа ${uuid} через ${delay / 1000}с...`,
+        );
+
+        // Получаем актуальную информацию из CDEK API
+        const fullOrderInfo = await this.getOrder(uuid);
+        const cdekNumber = fullOrderInfo?.entity?.cdek_number;
+        const statuses = Array.isArray(fullOrderInfo?.entity?.statuses)
+          ? fullOrderInfo.entity.statuses
+          : [];
+
+        // Если получили cdek_number - обновляем БД и завершаем попытки
+        if (cdekNumber) {
+          await this.prismaService.cdekOrder.update({
+            where: { id: orderId },
+            data: {
+              cdekNumber: cdekNumber,
+              rawResponse: fullOrderInfo as unknown as Prisma.InputJsonValue,
+              requestState: fullOrderInfo?.requests?.[0]?.state ?? undefined,
+              statusNote: statuses[0]?.code ?? undefined,
+            },
+          });
+
+          this.logger.log(
+            `✅ Заказ ${uuid} успешно обновлен: cdek_number=${cdekNumber}, статусов=${statuses.length}`,
+          );
+          return; // Успешно получили cdek_number, выходим
+        } else {
+          this.logger.warn(
+            `⏳ Попытка ${attempt + 1}: cdek_number еще не присвоен для заказа ${uuid}`,
+          );
+        }
+      } catch (error) {
+        this.logger.error(
+          `❌ Ошибка при обновлении заказа ${uuid} (попытка ${attempt + 1}):`,
+          error.message,
+        );
       }
-    } catch (error) {
-      this.logger.error(`❌ Ошибка при обновлении заказа ${uuid} (попытка ${attempt + 1}):`, error.message);
     }
-  }
-  
-  this.logger.warn(`⚠️  Заказ ${uuid} не получил cdek_number после ${maxAttempts} попыток`);
+
+    this.logger.warn(
+      `⚠️  Заказ ${uuid} не получил cdek_number после ${maxAttempts} попыток`,
+    );
   }
 
   /**
@@ -1153,17 +1370,19 @@ const apiResponse: any = await this.post('/v2/orders', payload, headers);
   /**
    * Получение списка заказов из БД с пагинацией и фильтрацией
    */
-  async getOrdersList(params: {
-    limit?: number;
-    offset?: number;
-    dateFrom?: Date;
-    dateTo?: Date;
-    tariffCode?: number;
-  } = {}) {
+  async getOrdersList(
+    params: {
+      limit?: number;
+      offset?: number;
+      dateFrom?: Date;
+      dateTo?: Date;
+      tariffCode?: number;
+    } = {},
+  ) {
     const { limit = 50, offset = 0, dateFrom, dateTo, tariffCode } = params;
 
     const where: any = {};
-    
+
     if (dateFrom || dateTo) {
       where.createdAt = {};
       if (dateFrom) where.createdAt.gte = dateFrom;
@@ -1174,7 +1393,7 @@ const apiResponse: any = await this.post('/v2/orders', payload, headers);
         where.createdAt.lte = endOfDay;
       }
     }
-    
+
     if (tariffCode !== undefined && tariffCode !== null) {
       where.tariffCode = Number(tariffCode);
     }
@@ -1211,11 +1430,13 @@ const apiResponse: any = await this.post('/v2/orders', payload, headers);
   }
 
   private _j(v: any): Prisma.InputJsonValue | undefined {
-    return v === null || v === undefined ? undefined : (v as Prisma.InputJsonValue);
+    return v === null || v === undefined
+      ? undefined
+      : (v as Prisma.InputJsonValue);
   }
 
   private _cleanPayload<T = any>(obj: T): T {
-    if (obj === null || obj === undefined) return obj as T;
+    if (obj === null || obj === undefined) return obj;
     if (Array.isArray(obj)) {
       return obj
         .map((v) => this._cleanPayload(v))
@@ -1230,7 +1451,8 @@ const apiResponse: any = await this.post('/v2/orders', payload, headers);
           cleaned === undefined ||
           cleaned === null ||
           (typeof cleaned === 'string' && cleaned.trim() === '')
-        ) continue;
+        )
+          continue;
         out[k] = cleaned;
       }
       return out;
@@ -1244,7 +1466,9 @@ const apiResponse: any = await this.post('/v2/orders', payload, headers);
    * 1. POST /v2/print/orders - формирование накладной
    * 2. GET /v2/print/orders/{uuid} - получение статуса и ссылки на скачивание
    */
-  async printWaybill(dto: PrintWaybillRequestDto): Promise<WaybillDto & { url?: string }> {
+  async printWaybill(
+    dto: PrintWaybillRequestDto,
+  ): Promise<WaybillDto & { url?: string }> {
     this.logger.log('Запрос на формирование накладной к заказу');
 
     // Валидация: не более 100 заказов
@@ -1289,15 +1513,19 @@ const apiResponse: any = await this.post('/v2/orders', payload, headers);
       const pollInterval = 2000; // 2 секунды
 
       for (let attempt = 1; attempt <= maxAttempts; attempt++) {
-        this.logger.log(`Проверка статуса накладной (попытка ${attempt}/${maxAttempts})`);
+        this.logger.log(
+          `Проверка статуса накладной (попытка ${attempt}/${maxAttempts})`,
+        );
 
         // Задержка перед следующей проверкой (кроме первой попытки)
         if (attempt > 1) {
-          await new Promise(resolve => setTimeout(resolve, pollInterval));
+          await new Promise((resolve) => setTimeout(resolve, pollInterval));
         }
 
         // Получение статуса накладной
-        const statusResponse: any = await this.get(`/v2/print/orders/${waybillUuid}`);
+        const statusResponse: any = await this.get(
+          `/v2/print/orders/${waybillUuid}`,
+        );
         const entity = statusResponse?.data?.entity;
 
         if (!entity) {
@@ -1315,7 +1543,7 @@ const apiResponse: any = await this.post('/v2/orders', payload, headers);
           case 'READY':
             // Накладная готова, скачиваем PDF
             this.logger.log('Накладная успешно сформирована, скачиваем PDF...');
-            
+
             try {
               // Скачиваем PDF файл
               const pdfUrl = `https://api.edu.cdek.ru/v2/print/orders/${waybillUuid}.pdf`;
@@ -1325,10 +1553,12 @@ const apiResponse: any = await this.post('/v2/orders', payload, headers);
                   Authorization: `${this.currentToken!.token_type} ${this.currentToken!.access_token}`,
                 },
               });
-              
+
               const pdfBuffer = Buffer.from(pdfResponse.data);
-              this.logger.log(`PDF скачан успешно, размер: ${pdfBuffer.length} байт`);
-              
+              this.logger.log(
+                `PDF скачан успешно, размер: ${pdfBuffer.length} байт`,
+              );
+
               return {
                 ...entity,
                 url: entity.url,
@@ -1376,7 +1606,7 @@ const apiResponse: any = await this.post('/v2/orders', payload, headers);
       );
     } catch (error) {
       this.logger.error('Ошибка при формировании накладной:', error.message);
-      
+
       if (error instanceof HttpException) {
         throw error;
       }
@@ -1394,7 +1624,9 @@ const apiResponse: any = await this.post('/v2/orders', payload, headers);
    * 1. POST /v2/print/barcodes - формирование ШК места
    * 2. GET /v2/print/barcodes/{uuid} - получение статуса и ссылки на скачивание
    */
-  async printBarcode(dto: PrintBarcodeRequestDtoV2): Promise<BarcodeDto & { url?: string }> {
+  async printBarcode(
+    dto: PrintBarcodeRequestDtoV2,
+  ): Promise<BarcodeDto & { url?: string }> {
     this.logger.log('Запрос на формирование ШК места к заказу');
 
     // Валидация: не более 100 заказов
@@ -1440,15 +1672,19 @@ const apiResponse: any = await this.post('/v2/orders', payload, headers);
       const pollInterval = 2000; // 2 секунды
 
       for (let attempt = 1; attempt <= maxAttempts; attempt++) {
-        this.logger.log(`Проверка статуса ШК места (попытка ${attempt}/${maxAttempts})`);
+        this.logger.log(
+          `Проверка статуса ШК места (попытка ${attempt}/${maxAttempts})`,
+        );
 
         // Задержка перед следующей проверкой (кроме первой попытки)
         if (attempt > 1) {
-          await new Promise(resolve => setTimeout(resolve, pollInterval));
+          await new Promise((resolve) => setTimeout(resolve, pollInterval));
         }
 
         // Получение статуса ШК места
-        const statusResponse: any = await this.get(`/v2/print/barcodes/${barcodeUuid}`);
+        const statusResponse: any = await this.get(
+          `/v2/print/barcodes/${barcodeUuid}`,
+        );
         const entity = statusResponse?.data?.entity;
 
         if (!entity) {
@@ -1466,7 +1702,7 @@ const apiResponse: any = await this.post('/v2/orders', payload, headers);
           case 'READY':
             // ШК места готов, скачиваем PDF
             this.logger.log('ШК места успешно сформирован, скачиваем PDF...');
-            
+
             try {
               // Скачиваем PDF файл
               const pdfUrl = `https://api.edu.cdek.ru/v2/print/barcodes/${barcodeUuid}.pdf`;
@@ -1476,10 +1712,12 @@ const apiResponse: any = await this.post('/v2/orders', payload, headers);
                   Authorization: `${this.currentToken!.token_type} ${this.currentToken!.access_token}`,
                 },
               });
-              
+
               const pdfBuffer = Buffer.from(pdfResponse.data);
-              this.logger.log(`PDF ШК места скачан успешно, размер: ${pdfBuffer.length} байт`);
-              
+              this.logger.log(
+                `PDF ШК места скачан успешно, размер: ${pdfBuffer.length} байт`,
+              );
+
               return {
                 ...entity,
                 url: entity.url,
@@ -1487,7 +1725,10 @@ const apiResponse: any = await this.post('/v2/orders', payload, headers);
                 pdfBase64: pdfBuffer.toString('base64'),
               };
             } catch (pdfError) {
-              this.logger.error('Ошибка при скачивании PDF ШК места:', pdfError.message);
+              this.logger.error(
+                'Ошибка при скачивании PDF ШК места:',
+                pdfError.message,
+              );
               // Возвращаем хотя бы URL, если скачивание не удалось
               return {
                 ...entity,
@@ -1527,7 +1768,7 @@ const apiResponse: any = await this.post('/v2/orders', payload, headers);
       );
     } catch (error) {
       this.logger.error('Ошибка при формировании ШК места:', error.message);
-      
+
       if (error instanceof HttpException) {
         throw error;
       }
