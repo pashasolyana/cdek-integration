@@ -49,13 +49,16 @@ export interface AuthResponse {
 class ApiService {
   private api: AxiosInstance
   private isRefreshing = false
-  private failedQueue: Array<{ resolve: (value?: AxiosResponse | void) => void; reject: (error: unknown) => void }> = []
+  private failedQueue: Array<{
+    resolve: (value?: AxiosResponse | void) => void
+    reject: (error: unknown) => void
+  }> = []
 
   constructor() {
     this.api = axios.create({
       baseURL: '/api',
       withCredentials: true,
-      headers: { 'Content-Type': 'application/json' }
+      headers: { 'Content-Type': 'application/json' },
     })
 
     this.api.interceptors.response.use(
@@ -86,7 +89,7 @@ class ApiService {
         }
 
         return Promise.reject(error)
-      }
+      },
     )
   }
 
@@ -108,10 +111,11 @@ class ApiService {
 
   /** Новый register: шлём оба шага сразу */
   async register(payload: RegisterPayload) {
-    const { data } = await this.api.post<AuthResponse, AxiosResponse<AuthResponse>, RegisterPayload>(
-      '/auth/register',
-      payload
-    )
+    const { data } = await this.api.post<
+      AuthResponse,
+      AxiosResponse<AuthResponse>,
+      RegisterPayload
+    >('/auth/register', payload)
     return data
   }
 
