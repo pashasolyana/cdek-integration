@@ -1,13 +1,28 @@
 import { ApiProperty, ApiPropertyOptional } from '@nestjs/swagger';
-import { IsInt, IsNumber, IsOptional, IsString, Max, Min } from 'class-validator';
+import {
+  IsInt,
+  IsNumber,
+  IsOptional,
+  IsString,
+  Max,
+  Min,
+} from 'class-validator';
 import { Type } from 'class-transformer';
 
 export class SuggestAddressQueryDto {
-  @ApiProperty({ description: 'Строка для поиска адреса', example: 'Москва, Тверская' })
+  @ApiProperty({
+    description: 'Строка для поиска адреса',
+    example: 'Москва, Тверская',
+  })
   @IsString()
   query!: string;
 
-  @ApiPropertyOptional({ description: 'Количество подсказок', default: 10, minimum: 1, maximum: 20 })
+  @ApiPropertyOptional({
+    description: 'Количество подсказок',
+    default: 10,
+    minimum: 1,
+    maximum: 20,
+  })
   @IsOptional()
   @Type(() => Number)
   @IsInt()
@@ -15,17 +30,31 @@ export class SuggestAddressQueryDto {
   @Max(20)
   count?: number;
 
-  @ApiPropertyOptional({ description: 'Начальный уровень детализации', enum: ['country', 'region', 'city', 'settlement', 'street', 'house'] })
+  @ApiPropertyOptional({
+    description: 'Начальный уровень детализации',
+    enum: ['country', 'region', 'city', 'settlement', 'street', 'house'],
+  })
   @IsOptional()
   @IsString()
-  from_bound?: 'country' | 'region' | 'city' | 'settlement' | 'street' | 'house';
+  from_bound?:
+    | 'country'
+    | 'region'
+    | 'city'
+    | 'settlement'
+    | 'street'
+    | 'house';
 
-  @ApiPropertyOptional({ description: 'Конечный уровень детализации', enum: ['country', 'region', 'city', 'settlement', 'street', 'house'] })
+  @ApiPropertyOptional({
+    description: 'Конечный уровень детализации',
+    enum: ['country', 'region', 'city', 'settlement', 'street', 'house'],
+  })
   @IsOptional()
   @IsString()
   to_bound?: 'country' | 'region' | 'city' | 'settlement' | 'street' | 'house';
 
-  @ApiPropertyOptional({ description: 'КЛАДР-код для фильтрации (город, регион)' })
+  @ApiPropertyOptional({
+    description: 'КЛАДР-код для фильтрации (город, регион)',
+  })
   @IsOptional()
   @IsString()
   kladr_id?: string;
@@ -46,7 +75,10 @@ export class SuggestCityQueryDto {
 }
 
 export class GeocodeQueryDto {
-  @ApiProperty({ description: 'Адрес для геокодирования', example: 'Москва, Красная площадь, 1' })
+  @ApiProperty({
+    description: 'Адрес для геокодирования',
+    example: 'Москва, Красная площадь, 1',
+  })
   @IsString()
   address!: string;
 }
@@ -62,7 +94,12 @@ export class ReverseGeocodeQueryDto {
   @IsNumber()
   longitude!: number;
 
-  @ApiPropertyOptional({ description: 'Радиус поиска в метрах', default: 100, minimum: 10, maximum: 5000 })
+  @ApiPropertyOptional({
+    description: 'Радиус поиска в метрах',
+    default: 100,
+    minimum: 10,
+    maximum: 5000,
+  })
   @IsOptional()
   @Type(() => Number)
   @IsInt()
@@ -78,13 +115,19 @@ export class DetectCityByIpQueryDto {
 }
 
 export class CleanAddressBodyDto {
-  @ApiProperty({ description: 'Адрес для стандартизации', example: 'мск сухонская 11 89' })
+  @ApiProperty({
+    description: 'Адрес для стандартизации',
+    example: 'мск сухонская 11 89',
+  })
   @IsString()
   address!: string;
 }
 
 export class SuggestOrganizationQueryDto {
-  @ApiProperty({ description: 'ИНН, название или ОГРН организации', example: 'Сбербанк' })
+  @ApiProperty({
+    description: 'ИНН, название или ОГРН организации',
+    example: 'Сбербанк',
+  })
   @IsString()
   query!: string;
 
@@ -102,7 +145,11 @@ export class SuggestNameQueryDto {
   @IsString()
   query!: string;
 
-  @ApiPropertyOptional({ description: 'Части ФИО для поиска', enum: ['NAME', 'SURNAME', 'PATRONYMIC'], isArray: true })
+  @ApiPropertyOptional({
+    description: 'Части ФИО для поиска',
+    enum: ['NAME', 'SURNAME', 'PATRONYMIC'],
+    isArray: true,
+  })
   @IsOptional()
   parts?: Array<'NAME' | 'SURNAME' | 'PATRONYMIC'>;
 

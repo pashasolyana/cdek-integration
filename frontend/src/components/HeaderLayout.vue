@@ -19,8 +19,16 @@
     </div> -->
 
     <div class="btn__container">
-      <button type="button" class="login-btn" @click="goLogin">Войти/Регистрация</button>
-      <button class="icon-btn" type="button" @click="" title="Скачать CSV">
+      <template v-if="isAuthenticated">
+        <div class="user-chip">
+          <span class="user-chip__label">{{ userLabel }}</span>
+        </div>
+        <button type="button" class="logout-btn" @click="handleLogout">Выйти</button>
+      </template>
+      <template v-else>
+        <button type="button" class="login-btn" @click="goLogin">Войти/Регистрация</button>
+      </template>
+      <button class="icon-btn" type="button" title="Скачать CSV">
         <svg viewBox="0 0 24 24" aria-hidden="true">
           <path :d="mdiCartOutline" />
         </svg>
@@ -44,9 +52,11 @@
 </template>
 
 <script setup lang="ts">
-import { ref, onMounted, onBeforeUnmount } from 'vue'
+import { ref, computed, onMounted, onBeforeUnmount } from 'vue'
+import { storeToRefs } from 'pinia'
 import { mdiCartOutline } from '@mdi/js'
 import { useRouter } from 'vue-router'
+import { useAuthStore } from '@/stores/auth'
 
 // track current hash for active menu highlighting
 const activeHash = ref<string>('')
@@ -55,10 +65,41 @@ const syncActive = () => {
   activeHash.value = window.location.hash || '#individuals'
 }
 const router = useRouter()
+
+const authStore = useAuthStore()
+const { user, isAuthenticated } = storeToRefs(authStore)
+
+const formatPhone = (value: string) => {
+  const digits = value.replace(/\D/g, '')
+
+  if (digits.length === 11) {
+    const normalized = digits[0] === '8' ? `7${digits.slice(1)}` : digits
+    return `+${normalized[0]} (${normalized.slice(1, 4)}) ${normalized.slice(4, 7)}-${normalized.slice(7, 9)}-${normalized.slice(9, 11)}`
+  }
+
+  if (digits.length === 10) {
+    return `+7 (${digits.slice(0, 3)}) ${digits.slice(3, 6)}-${digits.slice(6, 8)}-${digits.slice(8, 10)}`
+  }
+
+  return value
+}
+
+const userLabel = computed(() => {
+  if (!user.value) return ''
+  return user.value.phone ? formatPhone(user.value.phone) : 'Пользователь'
+})
+
 const goLogin = () => router.push('/login')
+
+const handleLogout = async () => {
+  await authStore.logout()
+  await router.push('/login')
+}
+
 onMounted(() => {
   syncActive()
   window.addEventListener('hashchange', syncActive)
+  void authStore.checkAuth()
 })
 
 onBeforeUnmount(() => {
@@ -88,14 +129,52 @@ onBeforeUnmount(() => {
   column-gap: 67px;
 }
 
-.login-btn {
-  border: 1px solid #a3b18a;
-  border-radius: 5px;
-  width: 184px;
-  height: 39px;
-  align-self: center;
-  color: black;
-  font-size: 16px;
+.login-btn,
+.logout-btn {
+  height: 36px;
+  padding: 0 14px;
+  border-radius: 10px;
+  background: #1f402e;
+  color: #fff;
+  border: 1px solid #1f402e;
+  font-size: 14px;
+  font-weight: 600;
+  cursor: pointer;
+  transition:
+    transform 0.2s,
+    box-shadow 0.2s,
+    background 0.2s,
+    border-color 0.2s;
+}
+.logout-btn {
+  background: #183323;
+  color: #fff;
+  transition: filter 0.2s ease;
+}
+
+.logout-btn:hover {
+  filter: brightness(0.95);
+}
+
+.user-chip {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  padding: 6px 12px;
+  border-radius: 9999px;
+  background: #d2d8d4;
+  color: #000000;
+  font-size: 14px;
+  line-height: 1.2;
+}
+
+.user-chip__avatar {
+  font-size: 18px;
+}
+
+.user-chip__label {
+  font-weight: 600;
+  letter-spacing: 0.3px;
 }
 
 .btn__container {
