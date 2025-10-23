@@ -1,8 +1,105 @@
 import { Injectable } from '@nestjs/common';
-import { JwtService } from '@nestjs/jwt';
+import { JwtService, type JwtSignOptions } from '@nestjs/jwt';
 import { ConfigService } from '@nestjs/config';
 import { PrismaService } from '../prisma/prisma.service';
 import * as crypto from 'crypto';
+import ms from 'ms';
+
+type MsInput = Parameters<typeof ms>[0];
+type MsStringValue = Extract<MsInput, string>;
+
+const DEFAULT_ACCESS_TTL: MsStringValue = '15m';
+const DEFAULT_REFRESH_TTL: MsStringValue = '7d';
+
+const MS_UNITS = new Set<string>([
+  'y',
+  'yr',
+  'yrs',
+  'year',
+  'years',
+  'w',
+  'week',
+  'weeks',
+  'd',
+  'day',
+  'days',
+  'h',
+  'hr',
+  'hrs',
+  'hour',
+  'hours',
+  'm',
+  'min',
+  'mins',
+  'minute',
+  'minutes',
+  's',
+  'sec',
+  'secs',
+  'second',
+  'seconds',
+  'ms',
+  'msec',
+  'msecs',
+  'millisecond',
+  'milliseconds',
+]);
+
+const isMsStringValue = (value: string): value is MsStringValue => {
+  const trimmed = value.trim();
+  if (!trimmed) {
+    return false;
+  }
+
+  if (/^\d+$/u.test(trimmed)) {
+    return true;
+  }
+
+  const match = trimmed.match(/^(\d+)\s*([a-zA-Z]+)$/u);
+  if (!match) {
+    return false;
+  }
+
+  return MS_UNITS.has(match[2].toLowerCase());
+};
+
+const toJwtExpiresIn = (
+  value: string | number | undefined,
+  fallback: JwtSignOptions['expiresIn'],
+): JwtSignOptions['expiresIn'] => {
+  if (typeof value === 'number' && Number.isFinite(value)) {
+    return value;
+  }
+
+  if (typeof value === 'string') {
+    const trimmed = value.trim();
+    if (!trimmed) {
+      return fallback;
+    }
+
+    if (/^\d+$/u.test(trimmed)) {
+      return Number(trimmed);
+    }
+
+    if (isMsStringValue(trimmed)) {
+      return trimmed;
+    }
+  }
+
+  return fallback;
+};
+
+const resolveRefreshTtlMs = (value: string | number | undefined): number => {
+  if (typeof value === 'number' && Number.isFinite(value)) {
+    return value * 1000;
+  }
+
+  if (typeof value === 'string' && isMsStringValue(value)) {
+    return ms(value);
+  }
+
+  return ms(DEFAULT_REFRESH_TTL);
+};
 
 export interface JwtPayload {
   sub: number; // user id
@@ -34,18 +131,30 @@ export class TokenService {
     };
 
     // Генерируем access token (короткоживущий)
+    const accessTokenTtl = this.configService.get<string | number>(
+      'JWT_EXPIRES_IN',
+      DEFAULT_ACCESS_TTL,
+    );
+    const accessTokenExpiresIn = toJwtExpiresIn(
+      accessTokenTtl,
+      DEFAULT_ACCESS_TTL,
+    );
+
     const accessToken = this.jwtService.sign(payload, {
       secret: this.configService.get<string>('JWT_SECRET'),
-      expiresIn: this.configService.get<string>('JWT_EXPIRES_IN', '15m'),
+      expiresIn: accessTokenExpiresIn,
     });
 
     // Генерируем refresh token (долгоживущий)
     const refreshToken = crypto.randomBytes(64).toString('hex');
-    const refreshExpiresIn = this.configService.get<string>('JWT_REFRESH_EXPIRES_IN', '7d');
-    
-    // Парсим время жизни refresh токена
-    const expiresAt = new Date();
-    expiresAt.setDate(expiresAt.getDate() + 7); // 7 дней по умолчанию
+    const refreshExpiresIn = this.configService.get<string | number>(
+      'JWT_REFRESH_EXPIRES_IN',
+      DEFAULT_REFRESH_TTL,
+    );
+
+    const refreshTtlMs = resolveRefreshTtlMs(refreshExpiresIn);
+
+    const expiresAt = new Date(Date.now() + refreshTtlMs);
 
     // Сохраняем refresh token в БД
     await this.prisma.refreshToken.create({
@@ -79,7 +188,9 @@ export class TokenService {
   /**
    * Проверяет валидность refresh токена
    */
-  async validateRefreshToken(token: string): Promise<{ userId: number; phone: string } | null> {
+  async validateRefreshToken(
+    token: string,
+  ): Promise<{ userId: number; phone: string } | null> {
     try {
       const refreshToken = await this.prisma.refreshToken.findFirst({
         where: {
@@ -118,7 +229,7 @@ export class TokenService {
    */
   async refreshTokens(refreshToken: string): Promise<TokenPair | null> {
     const validationResult = await this.validateRefreshToken(refreshToken);
-    
+
     if (!validationResult) {
       return null;
     }
@@ -156,10 +267,7 @@ export class TokenService {
   async cleanupExpiredTokens(): Promise<void> {
     await this.prisma.refreshToken.deleteMany({
       where: {
-        OR: [
-          { expiresAt: { lt: new Date() } },
-          { isRevoked: true },
-        ],
+        OR: [{ expiresAt: { lt: new Date() } }, { isRevoked: true }],
       },
     });
   }
@@ -169,7 +277,7 @@ export class TokenService {
    */
   decodeToken(token: string): JwtPayload | null {
     try {
-      return this.jwtService.decode(token) as JwtPayload;
+      return this.jwtService.decode(token);
     } catch (error) {
       return null;
     }

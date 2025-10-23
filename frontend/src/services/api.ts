@@ -49,13 +49,16 @@ export interface AuthResponse {
 class ApiService {
   private api: AxiosInstance
   private isRefreshing = false
-  private failedQueue: Array<{ resolve: (v?: any) => void; reject: (e?: any) => void }> = []
+  private failedQueue: Array<{
+    resolve: (value?: AxiosResponse | void) => void
+    reject: (error: unknown) => void
+  }> = []
 
   constructor() {
     this.api = axios.create({
       baseURL: '/api',
       withCredentials: true,
-      headers: { 'Content-Type': 'application/json' }
+      headers: { 'Content-Type': 'application/json' },
     })
 
     this.api.interceptors.response.use(
@@ -79,7 +82,6 @@ class ApiService {
             return this.api(originalRequest)
           } catch (refreshError) {
             this.processQueue(refreshError)
-            if (typeof window !== 'undefined') window.location.href = '/login'
             return Promise.reject(refreshError)
           } finally {
             this.isRefreshing = false
@@ -87,11 +89,11 @@ class ApiService {
         }
 
         return Promise.reject(error)
-      }
+      },
     )
   }
 
-  private processQueue(error: any) {
+  private processQueue(error: unknown) {
     this.failedQueue.forEach(({ resolve, reject }) => (error ? reject(error) : resolve()))
     this.failedQueue = []
   }
@@ -109,10 +111,11 @@ class ApiService {
 
   /** Новый register: шлём оба шага сразу */
   async register(payload: RegisterPayload) {
-    const { data } = await this.api.post<AuthResponse, AxiosResponse<AuthResponse>, RegisterPayload>(
-      '/auth/register',
-      payload
-    )
+    const { data } = await this.api.post<
+      AuthResponse,
+      AxiosResponse<AuthResponse>,
+      RegisterPayload
+    >('/auth/register', payload)
     return data
   }
 

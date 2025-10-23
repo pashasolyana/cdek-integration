@@ -24,10 +24,31 @@ import { CdekService } from './cdek.service';
 import { CdekAuthDto } from './dto/auth.dto';
 import { GetOrderQueryDto, OrderInfoResponseDto } from './dto/order.dto';
 import { Public } from '../auth/decorators/public.decorator';
-import { CalcTariffListRequestDto, CalcTariffListResponseDto } from './dto/calculator.dto';
-import { SuggestCitiesQueryDto, RegionsQueryDto, PostalCodesQueryDto, GeolocationQueryDto, CitiesQueryDto } from './dto/location.dto';
+import {
+  CalcTariffListRequestDto,
+  CalcTariffListResponseDto,
+} from './dto/calculator.dto';
+import {
+  SuggestCitiesQueryDto,
+  RegionsQueryDto,
+  PostalCodesQueryDto,
+  GeolocationQueryDto,
+  CitiesQueryDto,
+} from './dto/location.dto';
 import { ListFromDbQueryDto, SyncDeliveryPointsQueryDto } from './dto/cdek.dto';
 import { CreateCdekOrderDto } from './dto/create-cdek-order.dto';
+import {
+  GetOrdersListQueryDto,
+  OrdersListResponseDto,
+} from './dto/orders-list.dto';
+import {
+  PrintWaybillRequestDto,
+  PrintWaybillResponseDto,
+} from './dto/print-waybill.dto';
+import {
+  PrintBarcodeRequestDto,
+  PrintBarcodeResponseDto,
+} from './dto/print-barcode.dto';
 
 @ApiTags('CDEK API')
 @SkipThrottle() // Отключаем throttling для всех методов CDEK
@@ -59,11 +80,11 @@ export class CdekController {
   async getAuthToken() {
     try {
       this.logger.log('Проверка состояния токена CDEK');
-      
+
       // Попытаемся выполнить простой запрос для проверки токена
       // Это автоматически проверит и обновит токен при необходимости
       await this.cdekService.get('/v2/location/cities', { size: 1 });
-      
+
       return {
         success: true,
         message: 'Токен действителен и готов к использованию',
@@ -87,7 +108,8 @@ export class CdekController {
 
   @ApiOperation({
     summary: 'Принудительное обновление токена CDEK',
-    description: 'Принудительно запрашивает новый токен от CDEK API и сохраняет его в базу данных',
+    description:
+      'Принудительно запрашивает новый токен от CDEK API и сохраняет его в базу данных',
   })
   @ApiResponse({
     status: 200,
@@ -114,17 +136,20 @@ export class CdekController {
   async refreshToken() {
     try {
       this.logger.log('Принудительное обновление токена CDEK');
-      
+
       // Сбрасываем текущий токен для принудительного обновления
       await this.cdekService.forceRefreshToken();
-      
+
       return {
         success: true,
         message: 'Токен успешно обновлен',
         timestamp: new Date().toISOString(),
       };
     } catch (error) {
-      this.logger.error('Ошибка при принудительном обновлении токена:', error.message);
+      this.logger.error(
+        'Ошибка при принудительном обновлении токена:',
+        error.message,
+      );
       throw new HttpException(
         {
           success: false,
@@ -138,8 +163,66 @@ export class CdekController {
   }
 
   @ApiOperation({
+    summary: 'Получить список заказов из БД',
+    description:
+      'Получает список заказов из локальной базы данных с возможностью фильтрации по датам и типу доставки',
+  })
+  @ApiResponse({
+    status: 200,
+    description: 'Список заказов получен',
+    type: OrdersListResponseDto,
+  })
+  @ApiBearerAuth()
+  @Get('orders/list')
+  @UsePipes(new ValidationPipe({ transform: true, whitelist: true }))
+  async getOrdersList(@Query() query: GetOrdersListQueryDto) {
+    try {
+      this.logger.log(
+        `Запрос списка заказов: limit=${query.limit}, offset=${query.offset}`,
+      );
+
+      const params: any = {
+        limit: query.limit,
+        offset: query.offset,
+      };
+
+      if (query.dateFrom) {
+        params.dateFrom = new Date(query.dateFrom);
+      }
+
+      if (query.dateTo) {
+        params.dateTo = new Date(query.dateTo);
+      }
+
+      if (query.tariffCode !== undefined) {
+        params.tariffCode = query.tariffCode;
+      }
+
+      const result = await this.cdekService.getOrdersList(params);
+
+      return {
+        success: true,
+        total: result.total,
+        orders: result.orders,
+        message: 'Список заказов получен',
+      };
+    } catch (error) {
+      this.logger.error('Ошибка при получении списка заказов:', error.message);
+      throw new HttpException(
+        {
+          success: false,
+          message: 'Не удалось получить список заказов',
+          error: error.message,
+        },
+        error.status || HttpStatus.INTERNAL_SERVER_ERROR,
+      );
+    }
+  }
+
+  @ApiOperation({
     summary: 'Получить информацию о заказе по номеру',
-    description: 'Получает детальную информацию о ранее созданном заказе по номеру СДЭК или ИМ заказа. В ответе содержатся данные о статусе заказа, деталях доставки и информации о получателе.',
+    description:
+      'Получает детальную информацию о ранее созданном заказе по номеру СДЭК или ИМ заказа. В ответе содержатся данные о статусе заказа, деталях доставки и информации о получателе.',
   })
   @ApiQuery({
     name: 'cdek_number',
@@ -155,10 +238,10 @@ export class CdekController {
     type: 'string',
     example: 'ORDER-2024-001',
   })
-  @ApiResponse({ 
-    status: 200, 
+  @ApiResponse({
+    status: 200,
     description: 'Информация о заказе получена',
-    type: OrderInfoResponseDto
+    type: OrderInfoResponseDto,
   })
   @ApiResponse({ status: 400, description: 'Неверные параметры запроса' })
   @ApiResponse({ status: 404, description: 'Заказ не найден' })
@@ -166,8 +249,10 @@ export class CdekController {
   @Get('orders')
   async getOrderInfo(@Query() query: GetOrderQueryDto) {
     try {
-      this.logger.log(`Запрос информации о заказе: cdek_number=${query.cdek_number}`);
-      
+      this.logger.log(
+        `Запрос информации о заказе: cdek_number=${query.cdek_number}`,
+      );
+
       if (!query.cdek_number) {
         throw new HttpException(
           {
@@ -180,14 +265,14 @@ export class CdekController {
       }
 
       const orderInfo = await this.cdekService.getOrderInfo(query.cdek_number);
-      
+
       return {
         success: true,
         data: orderInfo,
         message: 'Информация о заказе получена успешно',
       };
     } catch (error) {
-    //  this.logger.error(`Ошибка при получении информации о заказе:`, error);
+      //  this.logger.error(`Ошибка при получении информации о заказе:`, error);
       throw new HttpException(
         {
           success: false,
@@ -199,7 +284,7 @@ export class CdekController {
     }
   }
 
-   @ApiOperation({
+  @ApiOperation({
     summary: 'Регистрация заказа в CDEK',
     description:
       'Создаёт заказ в CDEK (POST /v2/orders), сохраняет в БД структуру заказа, пакеты/товары, журнал requests и related_entities.',
@@ -217,9 +302,136 @@ export class CdekController {
         message: 'Заказ зарегистрирован, данные сохранены',
       };
     } catch (error: any) {
-      this.logger.error('Ошибка при регистрации заказа', error?.message, error?.stack);
+      this.logger.error(
+        'Ошибка при регистрации заказа',
+        error?.message,
+        error?.stack,
+      );
       throw new HttpException(
-        { success: false, message: 'Не удалось зарегистрировать заказ', error: error?.message },
+        {
+          success: false,
+          message: 'Не удалось зарегистрировать заказ',
+          error: error?.message,
+        },
+        error?.status || HttpStatus.INTERNAL_SERVER_ERROR,
+      );
+    }
+  }
+
+  @ApiOperation({
+    summary: 'Печать накладной к заказу',
+    description:
+      'Формирует накладную в формате PDF и возвращает её в виде Base64 строки. ' +
+      'Метод автоматически ожидает готовности накладной (polling статуса). ' +
+      'Максимум 100 заказов в одном запросе. Также возвращается ссылка, действительная 1 час.',
+  })
+  @ApiResponse({
+    status: 200,
+    description: 'Накладная сформирована, PDF файл и ссылка получены',
+    type: PrintWaybillResponseDto,
+  })
+  @ApiResponse({ status: 400, description: 'Неверные параметры запроса' })
+  @ApiResponse({
+    status: 408,
+    description: 'Превышено время ожидания формирования накладной',
+  })
+  @ApiBearerAuth()
+  @Post('orders/print-waybill')
+  @UsePipes(new ValidationPipe({ whitelist: true, transform: true }))
+  async printWaybill(@Body() dto: PrintWaybillRequestDto) {
+    try {
+      this.logger.log(
+        `Запрос на печать накладной для ${dto.orders.length} заказа(ов)`,
+      );
+
+      const result = await this.cdekService.printWaybill(dto);
+
+      // Создаем ответ без Buffer (он не сериализуется в JSON)
+      const response: any = {
+        success: true,
+        entity: {
+          uuid: result.uuid,
+          orders: result.orders,
+          copy_count: result.copy_count,
+          type: result.type,
+          url: result.url,
+          statuses: result.statuses,
+        },
+        url: result.url,
+        pdfBase64: result.pdfBase64, // PDF в Base64 для фронтенда
+        status: result.statuses?.[result.statuses.length - 1]?.code,
+        message: 'Накладная успешно сформирована',
+      };
+
+      return response;
+    } catch (error: any) {
+      this.logger.error('Ошибка при формировании накладной:', error?.message);
+      throw new HttpException(
+        {
+          success: false,
+          message: 'Не удалось сформировать накладную',
+          error: error?.message,
+        },
+        error?.status || HttpStatus.INTERNAL_SERVER_ERROR,
+      );
+    }
+  }
+
+  @ApiOperation({
+    summary: 'Формирование ШК места к заказу',
+    description:
+      'Формирует штрих-код места в формате PDF и возвращает его в виде Base64 строки. ' +
+      'Метод автоматически ожидает готовности ШК (polling статуса). ' +
+      'Максимум 100 заказов в одном запросе. Также возвращается ссылка, действительная 1 час.',
+  })
+  @ApiResponse({
+    status: 200,
+    description: 'ШК места сформирован, PDF файл и ссылка получены',
+    type: PrintBarcodeResponseDto,
+  })
+  @ApiResponse({ status: 400, description: 'Неверные параметры запроса' })
+  @ApiResponse({
+    status: 408,
+    description: 'Превышено время ожидания формирования ШК места',
+  })
+  @ApiBearerAuth()
+  @Post('orders/print-barcode')
+  @UsePipes(new ValidationPipe({ whitelist: true, transform: true }))
+  async printBarcode(@Body() dto: PrintBarcodeRequestDto) {
+    try {
+      this.logger.log(
+        `Запрос на формирование ШК места для ${dto.orders.length} заказа(ов)`,
+      );
+
+      const result = await this.cdekService.printBarcode(dto);
+
+      // Создаем ответ без Buffer (он не сериализуется в JSON)
+      const response: any = {
+        success: true,
+        entity: {
+          uuid: result.uuid,
+          orders: result.orders,
+          copy_count: result.copy_count,
+          format: result.format,
+          lang: result.lang,
+          url: result.url,
+          statuses: result.statuses,
+        },
+        url: result.url,
+        pdfBase64: result.pdfBase64, // PDF в Base64 для фронтенда
+        status: result.statuses?.[result.statuses.length - 1]?.code,
+        message: 'ШК места успешно сформирован',
+      };
+
+      return response;
+    } catch (error: any) {
+      this.logger.error('Ошибка при формировании ШК места:', error?.message);
+      throw new HttpException(
+        {
+          success: false,
+          message: 'Не удалось сформировать ШК места',
+          error: error?.message,
+        },
         error?.status || HttpStatus.INTERNAL_SERVER_ERROR,
       );
     }
@@ -227,7 +439,8 @@ export class CdekController {
 
   @ApiOperation({
     summary: 'Получить информацию о заказе по ID',
-    description: 'Получает детальную информацию о заказе по его идентификатору (UUID)',
+    description:
+      'Получает детальную информацию о заказе по его идентификатору (UUID)',
   })
   @ApiParam({
     name: 'orderId',
@@ -248,7 +461,10 @@ export class CdekController {
         message: 'Информация о заказе получена',
       };
     } catch (error) {
-      this.logger.error(`Ошибка при получении заказа ${orderId}:`, error.message);
+      this.logger.error(
+        `Ошибка при получении заказа ${orderId}:`,
+        error.message,
+      );
       throw new HttpException(
         {
           success: false,
@@ -260,108 +476,155 @@ export class CdekController {
     }
   }
 
-  
-
-@ApiOperation({
-  summary: 'Расчёт по доступным тарифам',
-  description: 'Стоимость и сроки по всем доступным тарифам (CDEK /v2/calculator/tarifflist)',
-})
-@ApiResponse({ status: 200, description: 'OK', type: CalcTariffListResponseDto })
-@ApiBearerAuth()
-@Post('calculator/tarifflist')
-@UsePipes(new ValidationPipe({ whitelist: true, transform: true }))
-async calcTariffList(@Body() body: CalcTariffListRequestDto): Promise<{
-  success: boolean; data: CalcTariffListResponseDto; message: string;
-}> {
-  try {
-    console.log(body)
-    const data = await this.cdekService.calculateTariffList(body);
-    console.log(data)
-    return { success: true, data, message: 'Расчёт выполнен' };
-  } catch (error) {
-    this.logger.error('Ошибка при расчёте тарифов:', error.message);
-    throw new HttpException(
-      { success: false, message: 'Не удалось выполнить расчёт тарифов', error: error.message },
-      error.status || HttpStatus.INTERNAL_SERVER_ERROR,
-    );
+  @ApiOperation({
+    summary: 'Расчёт по доступным тарифам',
+    description:
+      'Стоимость и сроки по всем доступным тарифам (CDEK /v2/calculator/tarifflist)',
+  })
+  @ApiResponse({
+    status: 200,
+    description: 'OK',
+    type: CalcTariffListResponseDto,
+  })
+  @ApiBearerAuth()
+  @Post('calculator/tarifflist')
+  @UsePipes(new ValidationPipe({ whitelist: true, transform: true }))
+  async calcTariffList(@Body() body: CalcTariffListRequestDto): Promise<{
+    success: boolean;
+    data: CalcTariffListResponseDto;
+    message: string;
+  }> {
+    try {
+      console.log(body);
+      const data = await this.cdekService.calculateTariffList(body);
+      console.log(data);
+      return { success: true, data, message: 'Расчёт выполнен' };
+    } catch (error) {
+      this.logger.error('Ошибка при расчёте тарифов:', error.message);
+      throw new HttpException(
+        {
+          success: false,
+          message: 'Не удалось выполнить расчёт тарифов',
+          error: error.message,
+        },
+        error.status || HttpStatus.INTERNAL_SERVER_ERROR,
+      );
+    }
   }
-}
 
-@ApiOperation({ summary: 'Подбор города по названию' })
-@ApiBearerAuth()
-@Get('location/suggest/cities')
-@UsePipes(new ValidationPipe({ transform: true, whitelist: true }))
-async suggestCities(@Query() query: SuggestCitiesQueryDto) {
-  try {
-    this.logger.log(`Подбор города: ${query.name}`);
-    const data = await this.cdekService.suggestCities(query);
-    return { success: true, data, message: 'Подбор выполнен', count: Array.isArray(data) ? data.length : 0 };
-  } catch (error) {
-    this.logger.error('Ошибка подбора города:', error.message);
-    throw new HttpException({ success: false, message: 'Не удалось выполнить подбор', error: error.message },
-      error.status || HttpStatus.INTERNAL_SERVER_ERROR);
+  @ApiOperation({ summary: 'Подбор города по названию' })
+  @ApiBearerAuth()
+  @Get('location/suggest/cities')
+  @UsePipes(new ValidationPipe({ transform: true, whitelist: true }))
+  async suggestCities(@Query() query: SuggestCitiesQueryDto) {
+    try {
+      this.logger.log(`Подбор города: ${query.name}`);
+      const data = await this.cdekService.suggestCities(query);
+      return {
+        success: true,
+        data,
+        message: 'Подбор выполнен',
+        count: Array.isArray(data) ? data.length : 0,
+      };
+    } catch (error) {
+      this.logger.error('Ошибка подбора города:', error.message);
+      throw new HttpException(
+        {
+          success: false,
+          message: 'Не удалось выполнить подбор',
+          error: error.message,
+        },
+        error.status || HttpStatus.INTERNAL_SERVER_ERROR,
+      );
+    }
   }
-}
 
-@ApiOperation({ summary: 'Список регионов' })
-@ApiBearerAuth()
-@Get('location/regions')
-@UsePipes(new ValidationPipe({ transform: true, whitelist: true }))
-async getRegions(@Query() query: RegionsQueryDto) {
-  try {
-    const data = await this.cdekService.getRegions(query);
-    return { success: true, data, message: 'Список регионов получен' };
-  } catch (error) {
-    this.logger.error('Ошибка получения регионов:', error.message);
-    throw new HttpException({ success: false, message: 'Не удалось получить регионы', error: error.message },
-      error.status || HttpStatus.INTERNAL_SERVER_ERROR);
+  @ApiOperation({ summary: 'Список регионов' })
+  @ApiBearerAuth()
+  @Get('location/regions')
+  @UsePipes(new ValidationPipe({ transform: true, whitelist: true }))
+  async getRegions(@Query() query: RegionsQueryDto) {
+    try {
+      const data = await this.cdekService.getRegions(query);
+      return { success: true, data, message: 'Список регионов получен' };
+    } catch (error) {
+      this.logger.error('Ошибка получения регионов:', error.message);
+      throw new HttpException(
+        {
+          success: false,
+          message: 'Не удалось получить регионы',
+          error: error.message,
+        },
+        error.status || HttpStatus.INTERNAL_SERVER_ERROR,
+      );
+    }
   }
-}
 
-@ApiOperation({ summary: 'Почтовые индексы города' })
-@ApiBearerAuth()
-@Get('location/postalcodes')
-@UsePipes(new ValidationPipe({ transform: true, whitelist: true }))
-async getPostalCodes(@Query() query: PostalCodesQueryDto) {
-  try {
-    const data = await this.cdekService.getPostalCodesByCity(query.city_code);
-    return { success: true, data, message: 'Индексы получены' };
-  } catch (error) {
-    this.logger.error('Ошибка получения индексов:', error.message);
-    throw new HttpException({ success: false, message: 'Не удалось получить индексы', error: error.message },
-      error.status || HttpStatus.INTERNAL_SERVER_ERROR);
+  @ApiOperation({ summary: 'Почтовые индексы города' })
+  @ApiBearerAuth()
+  @Get('location/postalcodes')
+  @UsePipes(new ValidationPipe({ transform: true, whitelist: true }))
+  async getPostalCodes(@Query() query: PostalCodesQueryDto) {
+    try {
+      const data = await this.cdekService.getPostalCodesByCity(query.city_code);
+      return { success: true, data, message: 'Индексы получены' };
+    } catch (error) {
+      this.logger.error('Ошибка получения индексов:', error.message);
+      throw new HttpException(
+        {
+          success: false,
+          message: 'Не удалось получить индексы',
+          error: error.message,
+        },
+        error.status || HttpStatus.INTERNAL_SERVER_ERROR,
+      );
+    }
   }
-}
 
-@ApiOperation({ summary: 'Локация по координатам' })
-@ApiBearerAuth()
-@Get('location/geolocation')
-@UsePipes(new ValidationPipe({ transform: true, whitelist: true }))
-async geolocation(@Query() query: GeolocationQueryDto) {
-  try {
-    const data = await this.cdekService.getLocationByCoordinates(query.latitude, query.longitude);
-    return { success: true, data, message: 'Локация определена' };
-  } catch (error) {
-    this.logger.error('Ошибка геолокации:', error.message);
-    throw new HttpException({ success: false, message: 'Не удалось определить локацию', error: error.message },
-      error.status || HttpStatus.INTERNAL_SERVER_ERROR);
+  @ApiOperation({ summary: 'Локация по координатам' })
+  @ApiBearerAuth()
+  @Get('location/geolocation')
+  @UsePipes(new ValidationPipe({ transform: true, whitelist: true }))
+  async geolocation(@Query() query: GeolocationQueryDto) {
+    try {
+      const data = await this.cdekService.getLocationByCoordinates(
+        query.latitude,
+        query.longitude,
+      );
+      return { success: true, data, message: 'Локация определена' };
+    } catch (error) {
+      this.logger.error('Ошибка геолокации:', error.message);
+      throw new HttpException(
+        {
+          success: false,
+          message: 'Не удалось определить локацию',
+          error: error.message,
+        },
+        error.status || HttpStatus.INTERNAL_SERVER_ERROR,
+      );
+    }
   }
-}
 
-@ApiOperation({ summary: 'Список населённых пунктов' })
-@ApiBearerAuth()
-@Get('location/cities')
-@UsePipes(new ValidationPipe({ transform: true, whitelist: true }))
-async getCities(@Query() query: CitiesQueryDto) {
-  try {
-    const data = await this.cdekService.getCities(query);
-    return { success: true, data, message: 'Список городов получен' };
-  } catch (error) {
-    this.logger.error('Ошибка получения городов:', error.message);
-    throw new HttpException({ success: false, message: 'Не удалось получить города', error: error.message },
-      error.status || HttpStatus.INTERNAL_SERVER_ERROR);
+  @ApiOperation({ summary: 'Список населённых пунктов' })
+  @ApiBearerAuth()
+  @Get('location/cities')
+  @UsePipes(new ValidationPipe({ transform: true, whitelist: true }))
+  async getCities(@Query() query: CitiesQueryDto) {
+    try {
+      const data = await this.cdekService.getCities(query);
+      return { success: true, data, message: 'Список городов получен' };
+    } catch (error) {
+      this.logger.error('Ошибка получения городов:', error.message);
+      throw new HttpException(
+        {
+          success: false,
+          message: 'Не удалось получить города',
+          error: error.message,
+        },
+        error.status || HttpStatus.INTERNAL_SERVER_ERROR,
+      );
+    }
   }
-}
 
   @ApiOperation({
     summary: 'Статус сервиса CDEK',
@@ -385,7 +648,7 @@ async getCities(@Query() query: CitiesQueryDto) {
     try {
       // Попытаемся выполнить простой запрос для проверки доступности сервиса
       await this.cdekService.get('/v2/location/cities', { size: 1 });
-      
+
       return {
         success: true,
         status: 'healthy',
@@ -404,44 +667,65 @@ async getCities(@Query() query: CitiesQueryDto) {
     }
   }
 
-@ApiOperation({ summary: 'Синхронизация ПВЗ в БД' })
-@ApiBearerAuth()
-@Get('delivery-points/sync')
-async syncDeliveryPoints(@Query() query: SyncDeliveryPointsQueryDto) {
-  try {
-    const result = await this.cdekService.syncDeliveryPoints(query);
-    return { success: true, ...result };
-  } catch (e:any) {
-    throw new HttpException({ success: false, message: e.message }, HttpStatus.INTERNAL_SERVER_ERROR);
-  }
-}
-
-@ApiOperation({ summary: 'ПВЗ из БД (фильтры, bbox, строковый поиск)' })
-@ApiBearerAuth()
-@Get('delivery-points/db')
-async getFromDb(@Query() q: ListFromDbQueryDto) {
-  try {
-    // режим радиуса при наличии center_* и radius_km
-    if (q.center_lat != null && q.center_lon != null && q.radius_km != null) {
-      const usePostGIS = process.env.USE_POSTGIS === 'true';
-      const limit = q.limit ?? 100, offset = q.offset ?? 0;
-      return usePostGIS
-        ? await this.cdekService.listWithinRadiusPostGIS(q.center_lat, q.center_lon, q.radius_km, limit, offset)
-        : await this.cdekService.listWithinRadiusHaversine(q.center_lat, q.center_lon, q.radius_km, limit, offset);
+  @ApiOperation({ summary: 'Синхронизация ПВЗ в БД' })
+  @ApiBearerAuth()
+  @Get('delivery-points/sync')
+  async syncDeliveryPoints(@Query() query: SyncDeliveryPointsQueryDto) {
+    try {
+      const result = await this.cdekService.syncDeliveryPoints(query);
+      return { success: true, ...result };
+    } catch (e: any) {
+      throw new HttpException(
+        { success: false, message: e.message },
+        HttpStatus.INTERNAL_SERVER_ERROR,
+      );
     }
-
-    // обычный список/поиск/bbox
-    return await this.cdekService.listFromDb({
-      type: q.type, city_code: q.city_code, q: q.q,
-      lat_min: q.lat_min, lat_max: q.lat_max, lon_min: q.lon_min, lon_max: q.lon_max,
-      limit: q.limit, offset: q.offset,
-    });
-  } catch (e:any) {
-    throw new HttpException({ success: false, message: e.message }, HttpStatus.INTERNAL_SERVER_ERROR);
   }
 
-  
-}
+  @ApiOperation({ summary: 'ПВЗ из БД (фильтры, bbox, строковый поиск)' })
+  @ApiBearerAuth()
+  @Get('delivery-points/db')
+  async getFromDb(@Query() q: ListFromDbQueryDto) {
+    try {
+      // режим радиуса при наличии center_* и radius_km
+      if (q.center_lat != null && q.center_lon != null && q.radius_km != null) {
+        const usePostGIS = process.env.USE_POSTGIS === 'true';
+        const limit = q.limit ?? 100,
+          offset = q.offset ?? 0;
+        return usePostGIS
+          ? await this.cdekService.listWithinRadiusPostGIS(
+              q.center_lat,
+              q.center_lon,
+              q.radius_km,
+              limit,
+              offset,
+            )
+          : await this.cdekService.listWithinRadiusHaversine(
+              q.center_lat,
+              q.center_lon,
+              q.radius_km,
+              limit,
+              offset,
+            );
+      }
 
-
+      // обычный список/поиск/bbox
+      return await this.cdekService.listFromDb({
+        type: q.type,
+        city_code: q.city_code,
+        q: q.q,
+        lat_min: q.lat_min,
+        lat_max: q.lat_max,
+        lon_min: q.lon_min,
+        lon_max: q.lon_max,
+        limit: q.limit,
+        offset: q.offset,
+      });
+    } catch (e: any) {
+      throw new HttpException(
+        { success: false, message: e.message },
+        HttpStatus.INTERNAL_SERVER_ERROR,
+      );
+    }
+  }
 }

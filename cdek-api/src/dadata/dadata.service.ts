@@ -4,11 +4,11 @@ import axios, { AxiosInstance } from 'axios';
 
 /**
  * Сервис для работы с API Dadata
- * 
+ *
  * Документация:
  * - Подсказки: https://dadata.ru/api/suggest/address/
  * - Стандартизация: https://dadata.ru/api/clean/address/
- * 
+ *
  * API Endpoints:
  * - Подсказки: POST https://suggestions.dadata.ru/suggestions/api/4_1/rs/suggest/address
  * - Стандартизация: POST https://cleaner.dadata.ru/api/v1/clean/address
@@ -29,7 +29,9 @@ export class DadataService {
       this.logger.warn('⚠️  DADATA_API_TOKEN не настроен в .env');
     }
     if (!this.secretKey) {
-      this.logger.warn('⚠️  DADATA_SECRET_KEY не настроен (нужен для стандартизации)');
+      this.logger.warn(
+        '⚠️  DADATA_SECRET_KEY не настроен (нужен для стандартизации)',
+      );
     }
 
     // Клиент для подсказок
@@ -38,8 +40,8 @@ export class DadataService {
       timeout: 10000,
       headers: {
         'Content-Type': 'application/json',
-        'Accept': 'application/json',
-        'Authorization': `Token ${this.apiKey}`,
+        Accept: 'application/json',
+        Authorization: `Token ${this.apiKey}`,
       },
     });
 
@@ -49,8 +51,8 @@ export class DadataService {
       timeout: 10000,
       headers: {
         'Content-Type': 'application/json',
-        'Accept': 'application/json',
-        'Authorization': `Token ${this.apiKey}`,
+        Accept: 'application/json',
+        Authorization: `Token ${this.apiKey}`,
         'X-Secret': this.secretKey,
       },
     });
@@ -62,7 +64,9 @@ export class DadataService {
     [this.suggestClient, this.cleanClient].forEach((client) => {
       client.interceptors.request.use(
         (config) => {
-          this.logger.debug(`📤 Dadata: ${config.method?.toUpperCase()} ${config.url}`);
+          this.logger.debug(
+            `📤 Dadata: ${config.method?.toUpperCase()} ${config.url}`,
+          );
           return config;
         },
         (error) => Promise.reject(error),
@@ -74,7 +78,9 @@ export class DadataService {
           return response;
         },
         (error) => {
-          this.logger.error(`❌ Dadata Error: ${error.response?.status || error.message}`);
+          this.logger.error(
+            `❌ Dadata Error: ${error.response?.status || error.message}`,
+          );
           return Promise.reject(error);
         },
       );
@@ -86,7 +92,7 @@ export class DadataService {
   /**
    * Стандартизация адреса (API Clean)
    * POST https://cleaner.dadata.ru/api/v1/clean/address
-   * 
+   *
    * ✔️ Разбивает адрес по полям (регион, город, улица, дом, квартира)
    * ✔️ Рассчитывает корректный индекс
    * ✔️ Определяет координаты
@@ -123,47 +129,66 @@ export class DadataService {
   /**
    * Подсказки по адресам (API Suggest)
    * POST https://suggestions.dadata.ru/suggestions/api/4_1/rs/suggest/address
-   * 
+   *
    * ✔️ Ищет адреса по любой части (от региона до квартиры)
    * ✔️ Работает по всем странам (Россия до квартиры, Беларусь/Казахстан/Узбекистан до дома)
    * ✔️ Находит по историческим названиям (Свердловск → Екатеринбург)
    * ✔️ Исправляет опечатки и неправильную раскладку
    * ✔️ Поиск по кадастровому номеру и ФИАС-коду
    */
-  async suggestAddress(query: string, options?: {
-    count?: number;
-    language?: 'ru' | 'en';
-    division?: 'administrative' | 'municipal';
-    locations?: Array<{
-      kladr_id?: string;
-      fias_id?: string;
-      region_fias_id?: string;
-      area_fias_id?: string;
-      city_fias_id?: string;
-      settlement_fias_id?: string;
-      city?: string;
-      region?: string;
-      country_iso_code?: string;
-    }>;
-    locations_geo?: Array<{
-      lat: number;
-      lon: number;
-      radius_meters?: number;
-      radius_km?: number;
-    }>;
-    locations_boost?: Array<{
-      kladr_id?: string;
-    }>;
-    from_bound?: {
-      value: 'country' | 'region' | 'area' | 'city' | 'settlement' | 'street' | 'house' | 'flat';
-    };
-    to_bound?: {
-      value: 'country' | 'region' | 'area' | 'city' | 'settlement' | 'street' | 'house' | 'flat';
-    };
-  }) {
+  async suggestAddress(
+    query: string,
+    options?: {
+      count?: number;
+      language?: 'ru' | 'en';
+      division?: 'administrative' | 'municipal';
+      locations?: Array<{
+        kladr_id?: string;
+        fias_id?: string;
+        region_fias_id?: string;
+        area_fias_id?: string;
+        city_fias_id?: string;
+        settlement_fias_id?: string;
+        city?: string;
+        region?: string;
+        country_iso_code?: string;
+      }>;
+      locations_geo?: Array<{
+        lat: number;
+        lon: number;
+        radius_meters?: number;
+        radius_km?: number;
+      }>;
+      locations_boost?: Array<{
+        kladr_id?: string;
+      }>;
+      from_bound?: {
+        value:
+          | 'country'
+          | 'region'
+          | 'area'
+          | 'city'
+          | 'settlement'
+          | 'street'
+          | 'house'
+          | 'flat';
+      };
+      to_bound?: {
+        value:
+          | 'country'
+          | 'region'
+          | 'area'
+          | 'city'
+          | 'settlement'
+          | 'street'
+          | 'house'
+          | 'flat';
+      };
+    },
+  ) {
     try {
       this.logger.log(`🔍 Поиск адресов: "${query}"`);
-      
+
       const response = await this.suggestClient.post('/suggest/address', {
         query,
         count: options?.count || 10,
@@ -178,7 +203,7 @@ export class DadataService {
 
       const count = response.data.suggestions?.length || 0;
       this.logger.log(`✅ Найдено: ${count} подсказок`);
-      
+
       return response.data;
     } catch (error: any) {
       this.handleError(error, 'Ошибка поиска подсказок по адресам');
@@ -190,8 +215,24 @@ export class DadataService {
    */
   async suggestAddressByType(
     query: string,
-    fromBound: 'country' | 'region' | 'area' | 'city' | 'settlement' | 'street' | 'house' | 'flat',
-    toBound: 'country' | 'region' | 'area' | 'city' | 'settlement' | 'street' | 'house' | 'flat',
+    fromBound:
+      | 'country'
+      | 'region'
+      | 'area'
+      | 'city'
+      | 'settlement'
+      | 'street'
+      | 'house'
+      | 'flat',
+    toBound:
+      | 'country'
+      | 'region'
+      | 'area'
+      | 'city'
+      | 'settlement'
+      | 'street'
+      | 'house'
+      | 'flat',
     count = 10,
   ) {
     return this.suggestAddress(query, {
@@ -242,7 +283,7 @@ export class DadataService {
   async geocodeAddress(query: string) {
     try {
       const response = await this.suggestAddress(query, { count: 1 });
-      
+
       if (response.suggestions && response.suggestions.length > 0) {
         const s = response.suggestions[0];
         return {
@@ -268,7 +309,11 @@ export class DadataService {
   /**
    * Обратное геокодирование - определить адрес по координатам
    */
-  async reverseGeocode(latitude: number, longitude: number, radiusMeters = 100) {
+  async reverseGeocode(
+    latitude: number,
+    longitude: number,
+    radiusMeters = 100,
+  ) {
     try {
       const response = await this.suggestClient.post('/geolocate/address', {
         lat: latitude,
@@ -288,7 +333,9 @@ export class DadataService {
    */
   async detectCityByIp(ip: string) {
     try {
-      const response = await this.suggestClient.post('/iplocate/address', { ip });
+      const response = await this.suggestClient.post('/iplocate/address', {
+        ip,
+      });
       return response.data;
     } catch (error: any) {
       this.handleError(error, 'Ошибка определения города по IP');
@@ -327,7 +374,11 @@ export class DadataService {
   /**
    * Подсказки по ФИО
    */
-  async suggestName(query: string, parts?: Array<'NAME' | 'SURNAME' | 'PATRONYMIC'>, count = 10) {
+  async suggestName(
+    query: string,
+    parts?: Array<'NAME' | 'SURNAME' | 'PATRONYMIC'>,
+    count = 10,
+  ) {
     try {
       const response = await this.suggestClient.post('/suggest/fio', {
         query,
@@ -382,22 +433,28 @@ export class DadataService {
       postal_code: cleanedAddress.postal_code || '',
       address: cleanedAddress.result || '',
       country_code: cleanedAddress.country_iso_code || 'RU',
-      
+
       // Координаты
-      latitude: cleanedAddress.geo_lat ? parseFloat(cleanedAddress.geo_lat) : null,
-      longitude: cleanedAddress.geo_lon ? parseFloat(cleanedAddress.geo_lon) : null,
-      
+      latitude: cleanedAddress.geo_lat
+        ? parseFloat(cleanedAddress.geo_lat)
+        : null,
+      longitude: cleanedAddress.geo_lon
+        ? parseFloat(cleanedAddress.geo_lon)
+        : null,
+
       // Коды для поиска в справочниках CDEK
-      region_code: cleanedAddress.region_code ? Number(cleanedAddress.region_code) : null,
+      region_code: cleanedAddress.region_code
+        ? Number(cleanedAddress.region_code)
+        : null,
       fias_id: cleanedAddress.fias_id || '',
       kladr_id: cleanedAddress.kladr_id || '',
-      
+
       // Детали адреса
       region: cleanedAddress.region || '',
       street: cleanedAddress.street || '',
       house: cleanedAddress.house || '',
       flat: cleanedAddress.flat || '',
-      
+
       // Коды качества
       qc: cleanedAddress.qc,
       qc_complete: cleanedAddress.qc_complete,
@@ -413,7 +470,7 @@ export class DadataService {
     try {
       // 1. Получаем подсказки
       const suggestions = await this.suggestAddress(query, { count: 1 });
-      
+
       if (!suggestions.suggestions || suggestions.suggestions.length === 0) {
         return null;
       }
@@ -426,7 +483,7 @@ export class DadataService {
         // Для отображения
         value: suggestion.value,
         unrestricted_value: suggestion.unrestricted_value,
-        
+
         // Для CDEK location
         postal_code: data.postal_code,
         country_code: data.country_iso_code || 'RU',
@@ -434,24 +491,24 @@ export class DadataService {
         address: data.street_with_type
           ? `${data.street_with_type}${data.house ? `, д ${data.house}` : ''}${data.flat ? `, кв ${data.flat}` : ''}`
           : suggestion.value,
-        
+
         // Координаты
         latitude: data.geo_lat ? parseFloat(data.geo_lat) : null,
         longitude: data.geo_lon ? parseFloat(data.geo_lon) : null,
-        
+
         // Коды
         fias_id: data.fias_id,
         kladr_id: data.kladr_id,
-        
+
         // Детали
         region: data.region,
         region_code: data.region_code,
         city_code: null, // CDEK использует свои коды, нужно искать через /location/suggest/cities
-        
+
         // Качество
         qc_geo: data.qc_geo,
         qc_complete: data.qc_complete,
-        
+
         // Полные данные
         full_data: data,
       };
@@ -563,7 +620,8 @@ export class DadataService {
         httpStatus = HttpStatus.UNAUTHORIZED;
         break;
       case 403:
-        errorMessage = 'Не подтверждена почта или недостаточно средств на балансе Dadata';
+        errorMessage =
+          'Не подтверждена почта или недостаточно средств на балансе Dadata';
         httpStatus = HttpStatus.FORBIDDEN;
         break;
       case 405:

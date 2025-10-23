@@ -57,7 +57,10 @@
               :class="['td', 'col-' + col.key, col.align ? 'align-' + col.align : '']"
               :style="col.width ? { width: col.width + 'px' } : null"
             >
-              <template v-if="cellFormat(col) === 'link'">
+              <template v-if="col.key === 'actions'">
+                <slot name="actions" :row="row" :index="i"></slot>
+              </template>
+              <template v-else-if="cellFormat(col) === 'link'">
                 <a href="#" class="link">{{ row[col.key] }}</a>
               </template>
               <template v-else-if="cellFormat(col) === 'money'">

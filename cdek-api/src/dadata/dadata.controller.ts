@@ -41,7 +41,8 @@ export class DadataController {
 
   @ApiOperation({
     summary: 'Подсказки по адресам',
-    description: 'Автодополнение адреса при вводе на форме. Возвращает стандартизированные адреса с КЛАДР, ФИАС, координатами.',
+    description:
+      'Автодополнение адреса при вводе на форме. Возвращает стандартизированные адреса с КЛАДР, ФИАС, координатами.',
   })
   @ApiResponse({ status: 200, description: 'Список подсказок получен' })
   @ApiResponse({ status: 400, description: 'Неверные параметры' })
@@ -51,7 +52,7 @@ export class DadataController {
   async suggestAddress(@Query() query: SuggestAddressQueryDto) {
     try {
       this.logger.log(`Подсказки по адресу: ${query.query}`);
-      
+
       const options: any = {
         count: query.count || 10,
       };
@@ -66,8 +67,11 @@ export class DadataController {
         options.locations = [{ kladr_id: query.kladr_id }];
       }
 
-      const data = await this.dadataService.suggestAddress(query.query, options);
-      
+      const data = await this.dadataService.suggestAddress(
+        query.query,
+        options,
+      );
+
       return {
         success: true,
         data,
@@ -77,7 +81,11 @@ export class DadataController {
     } catch (error: any) {
       this.logger.error('Ошибка получения подсказок:', error.message);
       throw new HttpException(
-        { success: false, message: 'Не удалось получить подсказки', error: error.message },
+        {
+          success: false,
+          message: 'Не удалось получить подсказки',
+          error: error.message,
+        },
         error.status || HttpStatus.INTERNAL_SERVER_ERROR,
       );
     }
@@ -94,8 +102,11 @@ export class DadataController {
   async suggestCity(@Query() query: SuggestCityQueryDto) {
     try {
       this.logger.log(`Поиск города: ${query.query}`);
-      const data = await this.dadataService.suggestCity(query.query, query.count);
-      
+      const data = await this.dadataService.suggestCity(
+        query.query,
+        query.count,
+      );
+
       return {
         success: true,
         data,
@@ -105,7 +116,11 @@ export class DadataController {
     } catch (error: any) {
       this.logger.error('Ошибка поиска города:', error.message);
       throw new HttpException(
-        { success: false, message: 'Не удалось найти город', error: error.message },
+        {
+          success: false,
+          message: 'Не удалось найти город',
+          error: error.message,
+        },
         error.status || HttpStatus.INTERNAL_SERVER_ERROR,
       );
     }
@@ -113,7 +128,8 @@ export class DadataController {
 
   @ApiOperation({
     summary: 'Геокодирование адреса',
-    description: 'Определение координат по адресу. Возвращает широту, долготу, почтовый индекс, КЛАДР и ФИАС коды.',
+    description:
+      'Определение координат по адресу. Возвращает широту, долготу, почтовый индекс, КЛАДР и ФИАС коды.',
   })
   @ApiResponse({ status: 200, description: 'Координаты определены' })
   @ApiResponse({ status: 404, description: 'Адрес не найден' })
@@ -124,7 +140,7 @@ export class DadataController {
     try {
       this.logger.log(`Геокодирование: ${query.address}`);
       const data = await this.dadataService.geocodeAddress(query.address);
-      
+
       if (!data) {
         throw new HttpException(
           { success: false, message: 'Адрес не найден' },
@@ -140,7 +156,11 @@ export class DadataController {
     } catch (error: any) {
       this.logger.error('Ошибка геокодирования:', error.message);
       throw new HttpException(
-        { success: false, message: 'Не удалось определить координаты', error: error.message },
+        {
+          success: false,
+          message: 'Не удалось определить координаты',
+          error: error.message,
+        },
         error.status || HttpStatus.INTERNAL_SERVER_ERROR,
       );
     }
@@ -156,13 +176,15 @@ export class DadataController {
   @UsePipes(new ValidationPipe({ transform: true, whitelist: true }))
   async reverseGeocode(@Query() query: ReverseGeocodeQueryDto) {
     try {
-      this.logger.log(`Обратное геокодирование: ${query.latitude}, ${query.longitude}`);
+      this.logger.log(
+        `Обратное геокодирование: ${query.latitude}, ${query.longitude}`,
+      );
       const data = await this.dadataService.reverseGeocode(
         query.latitude,
         query.longitude,
         query.radius || 100,
       );
-      
+
       return {
         success: true,
         data,
@@ -171,7 +193,11 @@ export class DadataController {
     } catch (error: any) {
       this.logger.error('Ошибка обратного геокодирования:', error.message);
       throw new HttpException(
-        { success: false, message: 'Не удалось определить адрес', error: error.message },
+        {
+          success: false,
+          message: 'Не удалось определить адрес',
+          error: error.message,
+        },
         error.status || HttpStatus.INTERNAL_SERVER_ERROR,
       );
     }
@@ -179,7 +205,8 @@ export class DadataController {
 
   @ApiOperation({
     summary: 'Определение города по IP-адресу',
-    description: 'Автоматическое определение города пользователя для предзаполнения формы',
+    description:
+      'Автоматическое определение города пользователя для предзаполнения формы',
   })
   @ApiResponse({ status: 200, description: 'Город определён' })
   @Public()
@@ -189,7 +216,7 @@ export class DadataController {
     try {
       this.logger.log(`Определение города по IP: ${query.ip}`);
       const data = await this.dadataService.detectCityByIp(query.ip);
-      
+
       return {
         success: true,
         data,
@@ -198,7 +225,11 @@ export class DadataController {
     } catch (error: any) {
       this.logger.error('Ошибка определения города:', error.message);
       throw new HttpException(
-        { success: false, message: 'Не удалось определить город', error: error.message },
+        {
+          success: false,
+          message: 'Не удалось определить город',
+          error: error.message,
+        },
         error.status || HttpStatus.INTERNAL_SERVER_ERROR,
       );
     }
@@ -206,10 +237,14 @@ export class DadataController {
 
   @ApiOperation({
     summary: 'Стандартизация адреса',
-    description: 'Очистка и разбор адреса по отдельным полям (регион, город, улица, дом, квартира). Требует DADATA_SECRET_KEY.',
+    description:
+      'Очистка и разбор адреса по отдельным полям (регион, город, улица, дом, квартира). Требует DADATA_SECRET_KEY.',
   })
   @ApiResponse({ status: 200, description: 'Адрес стандартизирован' })
-  @ApiResponse({ status: 503, description: 'API очистки недоступен (отсутствует SECRET_KEY)' })
+  @ApiResponse({
+    status: 503,
+    description: 'API очистки недоступен (отсутствует SECRET_KEY)',
+  })
   @ApiBearerAuth()
   @Post('clean/address')
   @UsePipes(new ValidationPipe({ transform: true, whitelist: true }))
@@ -217,7 +252,7 @@ export class DadataController {
     try {
       this.logger.log(`Стандартизация адреса: ${body.address}`);
       const data = await this.dadataService.cleanSingleAddress(body.address);
-      
+
       return {
         success: true,
         data,
@@ -226,7 +261,11 @@ export class DadataController {
     } catch (error: any) {
       this.logger.error('Ошибка стандартизации:', error.message);
       throw new HttpException(
-        { success: false, message: 'Не удалось стандартизировать адрес', error: error.message },
+        {
+          success: false,
+          message: 'Не удалось стандартизировать адрес',
+          error: error.message,
+        },
         error.status || HttpStatus.INTERNAL_SERVER_ERROR,
       );
     }
@@ -234,7 +273,8 @@ export class DadataController {
 
   @ApiOperation({
     summary: 'Получение полной информации об адресе',
-    description: 'Полная информация об адресе для заполнения формы CDEK: регион, город, улица, дом, координаты, КЛАДР, ФИАС, почтовый индекс',
+    description:
+      'Полная информация об адресе для заполнения формы CDEK: регион, город, улица, дом, координаты, КЛАДР, ФИАС, почтовый индекс',
   })
   @ApiResponse({ status: 200, description: 'Информация получена' })
   @ApiResponse({ status: 404, description: 'Адрес не найден' })
@@ -245,7 +285,7 @@ export class DadataController {
     try {
       this.logger.log(`Полная информация об адресе: ${query.address}`);
       const data = await this.dadataService.getAddressForCdek(query.address);
-      
+
       if (!data) {
         throw new HttpException(
           { success: false, message: 'Адрес не найден' },
@@ -261,7 +301,11 @@ export class DadataController {
     } catch (error: any) {
       this.logger.error('Ошибка получения информации:', error.message);
       throw new HttpException(
-        { success: false, message: 'Не удалось получить информацию', error: error.message },
+        {
+          success: false,
+          message: 'Не удалось получить информацию',
+          error: error.message,
+        },
         error.status || HttpStatus.INTERNAL_SERVER_ERROR,
       );
     }
@@ -269,7 +313,8 @@ export class DadataController {
 
   @ApiOperation({
     summary: 'Поиск организации по ИНН или названию',
-    description: 'Подсказки по организациям для заполнения данных отправителя/получателя (юрлица)',
+    description:
+      'Подсказки по организациям для заполнения данных отправителя/получателя (юрлица)',
   })
   @ApiResponse({ status: 200, description: 'Организации найдены' })
   @Public()
@@ -278,8 +323,11 @@ export class DadataController {
   async suggestOrganization(@Query() query: SuggestOrganizationQueryDto) {
     try {
       this.logger.log(`Поиск организации: ${query.query}`);
-      const data = await this.dadataService.suggestOrganization(query.query, query.count);
-      
+      const data = await this.dadataService.suggestOrganization(
+        query.query,
+        query.count,
+      );
+
       return {
         success: true,
         data,
@@ -289,7 +337,11 @@ export class DadataController {
     } catch (error: any) {
       this.logger.error('Ошибка поиска организации:', error.message);
       throw new HttpException(
-        { success: false, message: 'Не удалось найти организацию', error: error.message },
+        {
+          success: false,
+          message: 'Не удалось найти организацию',
+          error: error.message,
+        },
         error.status || HttpStatus.INTERNAL_SERVER_ERROR,
       );
     }
@@ -306,8 +358,12 @@ export class DadataController {
   async suggestName(@Query() query: SuggestNameQueryDto) {
     try {
       this.logger.log(`Подсказки по ФИО: ${query.query}`);
-      const data = await this.dadataService.suggestName(query.query, query.parts, query.count);
-      
+      const data = await this.dadataService.suggestName(
+        query.query,
+        query.parts,
+        query.count,
+      );
+
       return {
         success: true,
         data,
@@ -317,7 +373,11 @@ export class DadataController {
     } catch (error: any) {
       this.logger.error('Ошибка подсказок ФИО:', error.message);
       throw new HttpException(
-        { success: false, message: 'Не удалось получить подсказки', error: error.message },
+        {
+          success: false,
+          message: 'Не удалось получить подсказки',
+          error: error.message,
+        },
         error.status || HttpStatus.INTERNAL_SERVER_ERROR,
       );
     }

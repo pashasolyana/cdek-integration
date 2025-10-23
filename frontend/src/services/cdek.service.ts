@@ -116,6 +116,24 @@ class CdekService {
   }
 
   /**
+   * Поиск ПВЗ из БД (полный ответ с total и rows)
+   */
+  async getDeliveryPointsFromDb(params: {
+    type?: 'PVZ' | 'POSTAMAT'
+    city_code?: number
+    q?: string
+    lat_min?: number
+    lat_max?: number
+    lon_min?: number
+    lon_max?: number
+    limit?: number
+    offset?: number
+  }): Promise<{ total: number; rows: any[] }> {
+    const { data } = await this.api.get('/cdek/delivery-points/db', { params })
+    return data
+  }
+
+  /**
    * Поиск ПВЗ по радиусу
    */
   async getDeliveryPointsInRadius(
@@ -154,6 +172,73 @@ class CdekService {
       params: { cdek_number, im_number }
     })
     return data.data
+  }
+
+  /**
+   * Получение списка заказов с фильтрацией
+   */
+  async getOrdersList(params: {
+    limit?: number
+    offset?: number
+    dateFrom?: string
+    dateTo?: string
+    tariffCode?: number
+  } = {}): Promise<{ total: number; orders: any[] }> {
+    const { data } = await this.api.get('/cdek/orders/list', { params })
+    return {
+      total: data.total,
+      orders: data.orders
+    }
+  }
+
+  /**
+   * Печать накладной к заказу
+   * @param orders - Список заказов для печати (максимум 100)
+   * @param type - Форма квитанции (по умолчанию tpl_russia)
+   * @returns Объект с URL и PDF в Base64 для скачивания накладной
+   */
+  async printWaybill(
+    orders: Array<{ order_uuid?: string; cdek_number?: number; copy_count?: number }>,
+    type: string = 'tpl_russia'
+  ): Promise<{ url: string; pdfBase64?: string; entity: any; status: string }> {
+    const { data } = await this.api.post('/cdek/orders/print-waybill', {
+      orders,
+      type
+    })
+    return {
+      url: data.url,
+      pdfBase64: data.pdfBase64,
+      entity: data.entity,
+      status: data.status
+    }
+  }
+
+  /**
+   * Формирование ШК места к заказу
+   * @param orders - Список заказов для печати ШК (максимум 100)
+   * @param format - Формат печати (по умолчанию A4)
+   * @param lang - Язык печатной формы (по умолчанию RUS)
+   * @param copy_count - Количество копий (по умолчанию 1)
+   * @returns Объект с URL и PDF в Base64 для скачивания ШК места
+   */
+  async printBarcode(
+    orders: Array<{ order_uuid?: string; cdek_number?: number }>,
+    format: string = 'A4',
+    lang: string = 'RUS',
+    copy_count: number = 1
+  ): Promise<{ url: string; pdfBase64?: string; entity: any; status: string }> {
+    const { data } = await this.api.post('/cdek/orders/print-barcode', {
+      orders,
+      format,
+      lang,
+      copy_count
+    })
+    return {
+      url: data.url,
+      pdfBase64: data.pdfBase64,
+      entity: data.entity,
+      status: data.status
+    }
   }
 }
 

@@ -1,4 +1,12 @@
-import { IsOptional, IsString, IsNumber, IsBoolean, IsArray, ValidateNested, IsDateString } from 'class-validator';
+import {
+  IsOptional,
+  IsString,
+  IsNumber,
+  IsBoolean,
+  IsArray,
+  ValidateNested,
+  IsDateString,
+} from 'class-validator';
 import { Type } from 'class-transformer';
 import { ApiProperty, ApiPropertyOptional } from '@nestjs/swagger';
 
@@ -7,7 +15,7 @@ export class GetOrderQueryDto {
     description: 'Номер заказа СДЭК, по которому необходима информация',
     example: 1234567890,
     type: 'integer',
-    format: 'int64'
+    format: 'int64',
   })
   @IsOptional()
   @IsNumber()
@@ -15,7 +23,7 @@ export class GetOrderQueryDto {
 
   @ApiPropertyOptional({
     description: 'Номер заказа в ИС Клиента, по которому необходима информация',
-    example: 'ORDER-2024-001'
+    example: 'ORDER-2024-001',
   })
   @IsOptional()
   @IsString()
@@ -37,9 +45,9 @@ export class ContactDto {
   @ApiProperty({ description: 'ФИО контакта' })
   name: string;
 
-  @ApiPropertyOptional({ 
+  @ApiPropertyOptional({
     description: 'Тип контрагента',
-    enum: ['LEGAL_ENTITY', 'INDIVIDUAL']
+    enum: ['LEGAL_ENTITY', 'INDIVIDUAL'],
   })
   contragent_type?: string;
 
@@ -66,9 +74,9 @@ export class ContactDto {
   @ApiPropertyOptional({ description: 'Email' })
   email?: string;
 
-  @ApiPropertyOptional({ 
+  @ApiPropertyOptional({
     description: 'Телефоны',
-    type: [PhoneDto]
+    type: [PhoneDto],
   })
   @ValidateNested({ each: true })
   @Type(() => PhoneDto)
@@ -199,9 +207,9 @@ export class ItemDto {
   @ApiPropertyOptional({ description: 'Маркировка товара' })
   marking?: string;
 
-  @ApiPropertyOptional({ 
+  @ApiPropertyOptional({
     description: 'Оплата за товар',
-    type: PaymentDto
+    type: PaymentDto,
   })
   @ValidateNested()
   @Type(() => PaymentDto)
@@ -219,7 +227,9 @@ export class ItemDto {
   @ApiPropertyOptional({ description: 'Количество товара к доставке' })
   delivery_amount?: number;
 
-  @ApiPropertyOptional({ description: 'Наименование товара на иностранном языке' })
+  @ApiPropertyOptional({
+    description: 'Наименование товара на иностранном языке',
+  })
   name_i18n?: string;
 
   @ApiPropertyOptional({ description: 'Бренд товара' })
@@ -238,9 +248,9 @@ export class ItemDto {
   @ApiPropertyOptional({ description: 'Ссылка на сайт интернет-магазина' })
   url?: string;
 
-  @ApiPropertyOptional({ 
+  @ApiPropertyOptional({
     description: 'Истинный продавец',
-    type: SellerDto
+    type: SellerDto,
   })
   @ValidateNested()
   @Type(() => SellerDto)
@@ -297,17 +307,17 @@ export class PackageDto {
   @ApiPropertyOptional({ description: 'Комментарий к упаковке' })
   comment?: string;
 
-  @ApiPropertyOptional({ 
+  @ApiPropertyOptional({
     description: 'Товары в упаковке',
-    type: [ItemDto]
+    type: [ItemDto],
   })
   @ValidateNested({ each: true })
   @Type(() => ItemDto)
   items?: ItemDto[];
 
-  @ApiPropertyOptional({ 
+  @ApiPropertyOptional({
     description: 'Дополнительные услуги упаковки',
-    type: [PackageServiceDto]
+    type: [PackageServiceDto],
   })
   @ValidateNested({ each: true })
   @Type(() => PackageServiceDto)
@@ -343,9 +353,9 @@ export class StatusDto {
 }
 
 export class PaymentInfoDto {
-  @ApiProperty({ 
+  @ApiProperty({
     description: 'Тип оплаты',
-    enum: ['CASH', 'CARD']
+    enum: ['CASH', 'CARD'],
   })
   type: string;
 
@@ -370,9 +380,9 @@ export class DeliveryDetailDto {
   @ApiPropertyOptional({ description: 'Итоговая сумма' })
   total_sum?: number;
 
-  @ApiPropertyOptional({ 
+  @ApiPropertyOptional({
     description: 'Информация по оплате',
-    type: [PaymentInfoDto]
+    type: [PaymentInfoDto],
   })
   @ValidateNested({ each: true })
   @Type(() => PaymentInfoDto)
@@ -384,7 +394,9 @@ export class DeliveryDetailDto {
   @ApiPropertyOptional({ description: 'Сумма НДС для доставки' })
   delivery_vat_sum?: number;
 
-  @ApiPropertyOptional({ description: 'Размер скидки для доставки в процентах' })
+  @ApiPropertyOptional({
+    description: 'Размер скидки для доставки в процентах',
+  })
   delivery_discount_percent?: number;
 
   @ApiPropertyOptional({ description: 'Размер скидки для доставки в валюте' })
@@ -445,57 +457,57 @@ export class OrderEntityDto {
   @ApiPropertyOptional({ description: 'Адрес отправителя' })
   shipper_address?: string;
 
-  @ApiPropertyOptional({ 
+  @ApiPropertyOptional({
     description: 'Отправитель',
-    type: ContactDto
+    type: ContactDto,
   })
   @ValidateNested()
   @Type(() => ContactDto)
   sender?: ContactDto;
 
-  @ApiPropertyOptional({ 
+  @ApiPropertyOptional({
     description: 'Получатель',
-    type: ContactDto
+    type: ContactDto,
   })
   @ValidateNested()
   @Type(() => ContactDto)
   recipient?: ContactDto;
 
-  @ApiPropertyOptional({ 
+  @ApiPropertyOptional({
     description: 'Адрес отправления',
-    type: LocationDto
+    type: LocationDto,
   })
   @ValidateNested()
   @Type(() => LocationDto)
   from_location?: LocationDto;
 
-  @ApiPropertyOptional({ 
+  @ApiPropertyOptional({
     description: 'Адрес получения',
-    type: LocationDto
+    type: LocationDto,
   })
   @ValidateNested()
   @Type(() => LocationDto)
   to_location?: LocationDto;
 
-  @ApiPropertyOptional({ 
+  @ApiPropertyOptional({
     description: 'Дополнительные услуги',
-    type: [ServiceDto]
+    type: [ServiceDto],
   })
   @ValidateNested({ each: true })
   @Type(() => ServiceDto)
   services?: ServiceDto[];
 
-  @ApiPropertyOptional({ 
+  @ApiPropertyOptional({
     description: 'Список упаковок заказа',
-    type: [PackageDto]
+    type: [PackageDto],
   })
   @ValidateNested({ each: true })
   @Type(() => PackageDto)
   packages?: PackageDto[];
 
-  @ApiPropertyOptional({ 
+  @ApiPropertyOptional({
     description: 'Статусы заказа',
-    type: [StatusDto]
+    type: [StatusDto],
   })
   @ValidateNested({ each: true })
   @Type(() => StatusDto)
@@ -516,9 +528,9 @@ export class OrderEntityDto {
   @IsDateString()
   planned_delivery_date?: string;
 
-  @ApiPropertyOptional({ 
+  @ApiPropertyOptional({
     description: 'Информация о доставке',
-    type: DeliveryDetailDto
+    type: DeliveryDetailDto,
   })
   @ValidateNested()
   @Type(() => DeliveryDetailDto)
@@ -565,17 +577,17 @@ export class RequestDto {
   @ApiPropertyOptional({ description: 'Состояние запроса' })
   state?: string;
 
-  @ApiPropertyOptional({ 
+  @ApiPropertyOptional({
     description: 'Ошибки',
-    type: [ErrorDto]
+    type: [ErrorDto],
   })
   @ValidateNested({ each: true })
   @Type(() => ErrorDto)
   errors?: ErrorDto[];
 
-  @ApiPropertyOptional({ 
+  @ApiPropertyOptional({
     description: 'Предупреждения',
-    type: [WarningDto]
+    type: [WarningDto],
   })
   @ValidateNested({ each: true })
   @Type(() => WarningDto)
@@ -611,25 +623,25 @@ export class RelatedEntityDto {
 }
 
 export class OrderInfoResponseDto {
-  @ApiProperty({ 
+  @ApiProperty({
     description: 'Информация о заказе',
-    type: OrderEntityDto
+    type: OrderEntityDto,
   })
   @ValidateNested()
   @Type(() => OrderEntityDto)
   entity: OrderEntityDto;
 
-  @ApiPropertyOptional({ 
+  @ApiPropertyOptional({
     description: 'Запросы',
-    type: [RequestDto]
+    type: [RequestDto],
   })
   @ValidateNested({ each: true })
   @Type(() => RequestDto)
   requests?: RequestDto[];
 
-  @ApiPropertyOptional({ 
+  @ApiPropertyOptional({
     description: 'Связанные сущности',
-    type: [RelatedEntityDto]
+    type: [RelatedEntityDto],
   })
   @ValidateNested({ each: true })
   @Type(() => RelatedEntityDto)

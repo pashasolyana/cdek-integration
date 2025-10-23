@@ -18,24 +18,9 @@ const heroActions = [
     to: { name: 'orders' },
   },
   {
-    label: 'Печать накладных',
-    icon: mdiPrinterOutline,
-    to: { name: 'orders', query: { view: 'invoices' } },
-  },
-  {
-    label: 'Печать этикеток',
-    icon: mdiPrinterOutline,
-    to: { name: 'orders', query: { view: 'labels' } },
-  },
-  {
     label: 'Отследить посылку',
     icon: mdiTruckDeliveryOutline,
     to: { name: 'track' },
-  },
-  {
-    label: 'Отменить заказ',
-    to: { name: 'orders', query: { action: 'cancel' } },
-    variant: 'primary',
   },
 ]
 </script>
