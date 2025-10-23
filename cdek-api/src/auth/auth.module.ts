@@ -1,68 +1,49 @@
-import { Module } from '@nestjs/common';
-import { ConfigModule } from '@nestjs/config';
-import { ThrottlerModule } from '@nestjs/throttler';
-import { APP_GUARD } from '@nestjs/core';
+import { Module, Global } from '@nestjs/common';
+import {
+  JwtModule,
+  type JwtModuleOptions,
+  type JwtSignOptions,
+} from '@nestjs/jwt';
+import { PassportModule } from '@nestjs/passport';
+import { ConfigModule, ConfigService } from '@nestjs/config';
+import type { StringValue } from 'ms';
 
-import { AppController } from './app.controller';
-import { AppService } from './app.service';
-import { PrismaModule } from './prisma/prisma.module';
-import { CdekModule } from './cdek/cdek.module';
-import { HealthModule } from './health/health.module';
-import { AuthModule } from './auth/auth.module';
-import { DadataModule } from './dadata/dadata.module';
-import { JwtAuthGuard } from './auth/guards/jwt-auth.guard';
+import { AuthService } from './auth.service';
+import { TokenService } from './token.service';
+import { AuthController } from './auth.controller';
+import { JwtStrategy } from './strategies/jwt.strategy';
+import { JwtAuthGuard } from './guards/jwt-auth.guard';
+import { PrismaModule } from '../prisma/prisma.module';
 
+@Global()
 @Module({
   imports: [
-    // Глобальная конфигурация
-    ConfigModule.forRoot({
-      isGlobal: true,
-      envFilePath: '.env',
-    }),
-
-    // Rate limiting для защиты от злоупотреблений
-    ThrottlerModule.forRoot([
-      {
-        name: 'short',
-        ttl: 1000, // 1 секунда
-        limit: 10, // 10 запросов в секунду
-      },
-      {
-        name: 'medium',
-        ttl: 10000, // 10 секунд
-        limit: 100, // 100 запросов в 10 секунд
-      },
-      {
-        name: 'long',
-        ttl: 60000, // 1 минута
-        limit: 1000, // 1000 запросов в минуту
-      },
-      {
-        name: 'auth',
-        ttl: 900000, // 15 минут
-        limit: 5, // Только 5 попыток входа в 15 минут
-      },
-    ]),
-
-    // Основные модули
     PrismaModule,
-    AuthModule,
-    CdekModule,
-    DadataModule,
-    HealthModule,
+    PassportModule.register({ defaultStrategy: 'jwt' }),
+    JwtModule.registerAsync({
+      imports: [ConfigModule],
+      useFactory: async (
+        configService: ConfigService,
+      ): Promise<JwtModuleOptions> => {
+        const rawExpiresIn = configService.get<string | number>(
+          'JWT_EXPIRES_IN',
+          '15m',
+        );
+        const expiresIn: JwtSignOptions['expiresIn'] =
+          typeof rawExpiresIn === 'number'
+            ? rawExpiresIn
+            : (rawExpiresIn as StringValue);
+
+        return {
+          secret: configService.get<string>('JWT_SECRET'),
+          signOptions: { expiresIn },
+        };
+      },
+      inject: [ConfigService],
+    }),
   ],
-  controllers: [AppController],
-  providers: [
-    AppService,
-    {
-      provide: APP_GUARD,
-      useClass: JwtAuthGuard,
-    },
-    // Глобальный guard для rate limiting - ОТКЛЮЧЕН
-    // {
-    //   provide: APP_GUARD,
-    //   useClass: ThrottlerGuard,
-    // },
-  ],
+  controllers: [AuthController],
+  providers: [AuthService, TokenService, JwtStrategy, JwtAuthGuard],
+  exports: [AuthService, TokenService, JwtAuthGuard, JwtModule, PassportModule],
 })
-export class AppModule {}
+export class AuthModule {}
