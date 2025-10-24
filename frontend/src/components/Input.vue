@@ -42,9 +42,10 @@ const handleInput = (event: Event) => {
 <template>
   <div
     class="input-container"
-    :style="{ width: props.width, height: props.height, border: props.border }"
+    :style="{ width: props.width, height: props.height, border: props.border, minHeight: height }"
   >
     <input
+      :style="{ minHeight: height }"
       class="input-field"
       :type="props.type"
       :value="internalValue"

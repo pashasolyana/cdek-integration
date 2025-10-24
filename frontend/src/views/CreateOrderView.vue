@@ -130,11 +130,11 @@ interface TariffOption {
 
 // Режимы доставки для определения типа тарифа
 enum DeliveryMode {
-  DOOR_DOOR = 1,      // от двери до двери
+  DOOR_DOOR = 1, // от двери до двери
   DOOR_WAREHOUSE = 2, // от двери до склада
-  WAREHOUSE_DOOR = 3, // со склада до двери  
+  WAREHOUSE_DOOR = 3, // со склада до двери
   WAREHOUSE_WAREHOUSE = 4, // со склада до склада
-  DOOR_POSTAMAT = 6   // от двери до постамата
+  DOOR_POSTAMAT = 6, // от двери до постамата
 }
 
 type AlertType = 'success' | 'error'
@@ -266,7 +266,7 @@ const getPeriodLabel = (tariff: TariffOption) => {
   if (minDays === maxDays) return `${minDays} ${getDaysWord(minDays)}`
   if (minDays === null) return `до ${maxDays} ${getDaysWord(maxDays)}`
   if (maxDays === null) return `от ${minDays} ${getDaysWord(minDays)}`
-  
+
   return `${minDays}–${maxDays} ${getDaysWord(maxDays)}`
 }
 
@@ -274,7 +274,7 @@ const getDaysWord = (days: number | null) => {
   if (days === null) return 'дн.'
   const lastDigit = days % 10
   const lastTwoDigits = days % 100
-  
+
   if (lastTwoDigits >= 11 && lastTwoDigits <= 19) return 'дней'
   if (lastDigit === 1) return 'день'
   if (lastDigit >= 2 && lastDigit <= 4) return 'дня'
@@ -332,7 +332,11 @@ const getDeliveryModeFromTariff = (tariff: TariffOption | undefined): number => 
 
 // Проверяем, нужен ли адрес отправления (from_location)
 const needsFromLocation = (mode: number): boolean => {
-  return mode === DeliveryMode.DOOR_DOOR || mode === DeliveryMode.DOOR_WAREHOUSE || mode === DeliveryMode.DOOR_POSTAMAT
+  return (
+    mode === DeliveryMode.DOOR_DOOR ||
+    mode === DeliveryMode.DOOR_WAREHOUSE ||
+    mode === DeliveryMode.DOOR_POSTAMAT
+  )
 }
 
 // Проверяем, нужен ли адрес получения (to_location)
@@ -347,7 +351,11 @@ const needsShipmentPoint = (mode: number): boolean => {
 
 // Проверяем, нужен ли delivery_point (ПВЗ получения)
 const needsDeliveryPoint = (mode: number): boolean => {
-  return mode === DeliveryMode.DOOR_WAREHOUSE || mode === DeliveryMode.WAREHOUSE_WAREHOUSE || mode === DeliveryMode.DOOR_POSTAMAT
+  return (
+    mode === DeliveryMode.DOOR_WAREHOUSE ||
+    mode === DeliveryMode.WAREHOUSE_WAREHOUSE ||
+    mode === DeliveryMode.DOOR_POSTAMAT
+  )
 }
 
 // Таймауты для debounce
@@ -881,26 +889,28 @@ const createOrder = async () => {
 
   try {
     // Получаем выбранный тариф
-    const selectedTariff = tariffResults.value.find(t => t.tariff_code === selectedTariffCode.value)
+    const selectedTariff = tariffResults.value.find(
+      (t) => t.tariff_code === selectedTariffCode.value,
+    )
     const deliveryMode = getDeliveryModeFromTariff(selectedTariff)
-    
+
     // Формируем данные заказа согласно CDEK API
     const orderData: any = {
       type: 1, // 1 - интернет-магазин, 2 - доставка
       number: `ORDER-${Date.now()}`,
       tariff_code: selectedTariffCode.value,
       comment: `Заказ через ${tradingCompany.value}`,
-      
+
       // Получатель (обязательно)
       recipient: {
         name: customerName.value,
         phones: [
           {
-            number: customerPhone.value.startsWith('+') 
-              ? customerPhone.value 
-              : `+${customerPhone.value}`
-          }
-        ]
+            number: customerPhone.value.startsWith('+')
+              ? customerPhone.value
+              : `+${customerPhone.value}`,
+          },
+        ],
       },
 
       // Упаковки с товарами
@@ -920,10 +930,10 @@ const createOrder = async () => {
               payment: { value: parseFloat(estimatedCost.value || '0') },
               cost: parseFloat(estimatedCost.value || '0'),
               weight: parseInt(p.weight, 10),
-              amount: 1
-            }
-          ]
-        }))
+              amount: 1,
+            },
+          ],
+        })),
     }
 
     // Отправитель (если есть данные продавца)
@@ -932,16 +942,14 @@ const createOrder = async () => {
         name: sellerName.value,
         phones: [
           {
-            number: sellerPhone.value.startsWith('+')
-              ? sellerPhone.value
-              : `+${sellerPhone.value}`
-          }
-        ]
+            number: sellerPhone.value.startsWith('+') ? sellerPhone.value : `+${sellerPhone.value}`,
+          },
+        ],
       }
     }
 
     // Обработка адресов в зависимости от режима доставки
-    
+
     // ОТ СКЛАДА: используем shipment_point
     if (needsShipmentPoint(deliveryMode)) {
       if (shipmentPoint.value) {
@@ -949,7 +957,7 @@ const createOrder = async () => {
       } else {
         orderAlert.value = {
           type: 'error',
-          message: 'Для выбранного тарифа необходимо указать код ПВЗ отправки'
+          message: 'Для выбранного тарифа необходимо указать код ПВЗ отправки',
         }
         return
       }
@@ -961,7 +969,7 @@ const createOrder = async () => {
         country_code: fromCountryCode.value,
         city: fromCityName.value,
         address: fromAddress.value || undefined,
-        postal_code: fromPostalCode.value || undefined
+        postal_code: fromPostalCode.value || undefined,
       }
     }
 
@@ -972,7 +980,7 @@ const createOrder = async () => {
       } else {
         orderAlert.value = {
           type: 'error',
-          message: 'Для выбранного тарифа необходимо указать код ПВЗ получения'
+          message: 'Для выбранного тарифа необходимо указать код ПВЗ получения',
         }
         return
       }
@@ -984,39 +992,38 @@ const createOrder = async () => {
         country_code: toCountryCode.value,
         city: toCityName.value,
         address: toAddress.value || undefined,
-        postal_code: toPostalCode.value || undefined
+        postal_code: toPostalCode.value || undefined,
       }
     }
 
     console.log('📦 Отправка заказа в CDEK:', JSON.stringify(orderData, null, 2))
-    
+
     const result = await cdekService.createOrder(orderData)
-    
+
     console.log('✅ Результат создания заказа:', result)
-    
+
     // Формируем сообщение об успехе
     const successParts = ['Заказ успешно создан!']
     if (result.entity?.uuid) successParts.push(`UUID: ${result.entity.uuid}`)
     if (result.local?.cdekNumber) successParts.push(`Номер CDEK: ${result.local.cdekNumber}`)
-    
+
     orderAlert.value = {
       type: 'success',
-      message: successParts.join(' ')
+      message: successParts.join(' '),
     }
-    
   } catch (error: any) {
     console.error('❌ Ошибка при создании заказа:', error)
     const errorMessage = error.response?.data?.error || error.message || 'Неизвестная ошибка'
     const errorDetails = error.response?.data?.requests?.[0]?.errors || []
-    
+
     let fullMessage = `Не удалось создать заказ: ${errorMessage}`
     if (errorDetails.length > 0) {
       fullMessage += `. Детали: ${errorDetails.map((e: any) => e.message).join(', ')}`
     }
-    
+
     orderAlert.value = {
       type: 'error',
-      message: fullMessage
+      message: fullMessage,
     }
   }
 }
@@ -1095,7 +1102,7 @@ const resetForm = () => {
             :suggestions="fromCitySuggestions"
             :loading="fromCityLoading"
             placeholder="Город отправления"
-            width="392px"
+            width="292px"
             height="54px"
             :error="formErrors.fromCity"
             @select="handleFromCitySelect"
@@ -1105,7 +1112,7 @@ const resetForm = () => {
             :suggestions="fromAddressSuggestions"
             :loading="fromAddressLoading"
             placeholder="Адрес отправления"
-            width="392px"
+            width="292px"
             height="54px"
             @select="handleFromAddressSelect"
           />
@@ -1156,14 +1163,14 @@ const resetForm = () => {
         <Input
           v-model="fromPostalCode"
           height="54px"
-          width="392px"
+          width="292px"
           placeholder="Индекс"
           :error="formErrors.fromPostalCode"
         />
         <Input
           v-model="shipmentPoint"
           height="54px"
-          width="392px"
+          width="292px"
           placeholder="Код ПВЗ отправки (если со склада)"
         />
       </section>
@@ -1179,7 +1186,7 @@ const resetForm = () => {
             :suggestions="toCitySuggestions"
             :loading="toCityLoading"
             placeholder="Город получателя"
-            width="392px"
+            width="292px"
             height="54px"
             :error="formErrors.toCity"
             @select="handleToCitySelect"
@@ -1189,7 +1196,7 @@ const resetForm = () => {
             :suggestions="toAddressSuggestions"
             :loading="toAddressLoading"
             placeholder="Адрес получателя"
-            width="392px"
+            width="292px"
             height="54px"
             @select="handleToAddressSelect"
           />
@@ -1222,14 +1229,14 @@ const resetForm = () => {
         <Input
           v-model="toPostalCode"
           height="54px"
-          width="392px"
+          width="292px"
           placeholder="Индекс"
           :error="formErrors.toPostalCode"
         />
         <Input
           v-model="deliveryPoint"
           height="54px"
-          width="392px"
+          width="292px"
           placeholder="Код ПВЗ получения (если на склад/постамат)"
         />
       </section>
@@ -1269,18 +1276,32 @@ const resetForm = () => {
     </section>
     <section class="packages-section">
       <div class="packages">
-        <div v-for="(pkg, index) in packages" :key="index" class="package">
-          <Dropdown
+        <div
+          v-for="(pkg, index) in packages"
+          :key="index"
+          class="package"
+          :style="{
+            marginBottom:
+              packageErrors[index] &&
+              (packageErrors[index].weight ||
+                packageErrors[index].length ||
+                packageErrors[index].width ||
+                packageErrors[index].height)
+                ? '40px'
+                : '10px',
+          }"
+        >
+          <!-- <Dropdown
             v-model="pkg.type"
             :options="packageTypeOptions"
             placeholder="Тип вложения"
-            width="234px"
+            width="250px"
             height="54px"
-          />
+          /> -->
           <Input
             v-model="pkg.weight"
             height="54px"
-            width="202px"
+            width="217px"
             placeholder="Вес(гр)"
             :error="packageErrors[index]?.weight"
             @update:modelValue="() => clearPackageError(0, 'weight')"
@@ -1288,7 +1309,7 @@ const resetForm = () => {
           <Input
             v-model="pkg.length"
             height="54px"
-            width="202px"
+            width="217px"
             placeholder="Длина(см)"
             :error="packageErrors[index]?.length"
             @update:modelValue="() => clearPackageError(0, 'length')"
@@ -1296,7 +1317,7 @@ const resetForm = () => {
           <Input
             v-model="pkg.width"
             height="54px"
-            width="202px"
+            width="217px"
             placeholder="Ширина(см)"
             :error="packageErrors[index]?.width"
             @update:modelValue="() => clearPackageError(0, 'width')"
@@ -1304,17 +1325,41 @@ const resetForm = () => {
           <Input
             v-model="pkg.height"
             height="54px"
-            width="202px"
+            width="217px"
             placeholder="Высота(см)"
             :error="packageErrors[index]?.height"
             @update:modelValue="() => clearPackageError(0, 'height')"
           />
+          <div v-if="index === 0" class="patch"></div>
           <!-- Кнопка удаления пакета -->
-          <button v-if="index > 0" class="remove-btn" @click="removePackage(index)">Удалить</button>
+          <button v-if="index > 0" class="remove-btn" @click="removePackage(index)">
+            <!-- <svg
+              width="39"
+              height="25"
+              viewBox="0 0 39 25"
+              fill="none"
+              xmlns="http://www.w3.org/2000/svg"
+            >
+              <line x1="12" y1="11.5" x2="27" y2="11.5" stroke="white" />
+            </svg> -->
+            Удалить посылку
+          </button>
         </div>
       </div>
       <div class="plus-btn-container">
-        <button class="plus-btn" @click="addPackage">Добавить посылку</button>
+        <button class="plus-btn" @click="addPackage">
+          <!-- <svg
+            width="39"
+            height="25"
+            viewBox="0 0 39 25"
+            fill="none"
+            xmlns="http://www.w3.org/2000/svg"
+          >
+            <line x1="12" y1="11.5" x2="27" y2="11.5" stroke="white" />
+            <line x1="19.5" y1="4" x2="19.5" y2="19" stroke="white" />
+          </svg> -->
+          Добавить посылку
+        </button>
       </div>
     </section>
     <section class="proccesing-section">
@@ -1571,6 +1616,27 @@ const resetForm = () => {
   align-items: center;
 }
 
+.patch {
+  display: flex;
+  width: 170px;
+  height: 54px;
+}
+
+.remove-btn {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 170px;
+  height: 54px;
+  background-color: #d61b1b;
+  border: none;
+  border-radius: 5px;
+  color: white;
+  font-size: 16px;
+  cursor: pointer;
+  padding: 0px 12px;
+}
+
 .plus-btn-container {
   width: 170px;
   height: 54px;
@@ -1595,7 +1661,7 @@ const resetForm = () => {
 }
 
 .proccesing-section {
-  margin-top: 40px;
+  margin-top: 50px;
   display: flex;
   flex-direction: column;
 }
