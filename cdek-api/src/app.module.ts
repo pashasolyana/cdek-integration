@@ -10,6 +10,8 @@ import { CdekModule } from './cdek/cdek.module';
 import { HealthModule } from './health/health.module';
 import { AuthModule } from './auth/auth.module';
 import { DadataModule } from './dadata/dadata.module';
+import { SmsModule } from './sms/sms.module';
+import { CompanyModule } from './company/company.module';
 import { JwtAuthGuard } from './auth/guards/jwt-auth.guard';
 
 @Module({
@@ -47,6 +49,8 @@ import { JwtAuthGuard } from './auth/guards/jwt-auth.guard';
     // Основные модули
     PrismaModule,
     AuthModule,
+    SmsModule,
+    CompanyModule,
     CdekModule,
     DadataModule,
     HealthModule,

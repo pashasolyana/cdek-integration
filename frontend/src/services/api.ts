@@ -1,8 +1,8 @@
 // apiService.ts
 import axios, { type AxiosInstance, type AxiosResponse } from 'axios'
 
-/** ===== Типы под /auth/register ===== */
-export interface RegisterUserPayload {
+/** ===== Типы для упрощенной регистрации ===== */
+export interface RegisterPayload {
   firstName: string
   lastName: string
   email?: string
@@ -10,7 +10,8 @@ export interface RegisterUserPayload {
   password: string
 }
 
-export interface RegisterCompanyPayload {
+/** ===== Типы для компании (личный кабинет) ===== */
+export interface CompanyPayload {
   companyType: string
   companyName: string
   inn: string
@@ -25,13 +26,6 @@ export interface RegisterCompanyPayload {
   legalIndex: string
   legalCity: string
   legalAddress: string
-  /** если храните ФИО ответственного (у тебя в форме есть): */
-  legalFullName?: string
-}
-
-export interface RegisterPayload {
-  user: RegisterUserPayload
-  company: RegisterCompanyPayload
 }
 
 export interface AuthUser {
@@ -109,13 +103,21 @@ class ApiService {
     return data
   }
 
-  /** Новый register: шлём оба шага сразу */
+  /** Отправка кода подтверждения при регистрации */
+  async sendRegistrationCode(phone: string) {
+    const { data } = await this.api.post('/auth/register/send-code', { phone })
+    return data
+  }
+
+  /** Верификация кода при регистрации */
+  async verifyRegistrationCode(phone: string, code: string) {
+    const { data } = await this.api.post('/auth/register/verify-code', { phone, code })
+    return data
+  }
+
+  /** Регистрация (упрощенная, без компании) */
   async register(payload: RegisterPayload) {
-    const { data } = await this.api.post<
-      AuthResponse,
-      AxiosResponse<AuthResponse>,
-      RegisterPayload
-    >('/auth/register', payload)
+    const { data } = await this.api.post<AuthResponse>('/auth/register', payload)
     return data
   }
 
@@ -126,6 +128,27 @@ class ApiService {
 
   async checkAuth() {
     const { data } = await this.api.get('/auth/me')
+    return data
+  }
+
+  // ----- Company (Личный кабинет) -----
+  async getCompany() {
+    const { data } = await this.api.get('/company')
+    return data.company // Извлекаем company из обертки
+  }
+
+  async createCompany(payload: CompanyPayload) {
+    const { data } = await this.api.post('/company', payload)
+    return data.company
+  }
+
+  async updateCompany(payload: CompanyPayload) {
+    const { data } = await this.api.put('/company', payload)
+    return data.company
+  }
+
+  async deleteCompany() {
+    const { data } = await this.api.delete('/company')
     return data
   }
 

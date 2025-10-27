@@ -3,7 +3,7 @@ import Dropdown from '@/components/Dropdown.vue'
 import Input from '@/components/Input.vue'
 import PVZCard from '@/components/PVZCard.vue'
 import YMap from '@/components/YMap.vue'
-import { onBeforeUnmount, onMounted, ref, watch, reactive } from 'vue'
+import { onBeforeUnmount, onMounted, ref, watch, reactive, computed } from 'vue'
 import { useRouter } from 'vue-router'
 import Autocomplete from '@/components/Autocomplete.vue'
 import { dadataService, type DadataSuggestion } from '@/services/dadata.service'
@@ -13,8 +13,15 @@ const router = useRouter()
 const toMain = () => router.push('/')
 
 const isMapModalOpen = ref(false)
+const mapContext = ref<'from' | 'to'>('to') // какой адрес редактируем
+const mapDeliveryPoints = ref<any[]>([]) // точки выдачи для списка
+const mapSearchQuery = ref('') // поиск по списку
 watch(isMapModalOpen, (newVal) => {
   document.body.style.overflow = newVal ? 'hidden' : ''
+  if (!newVal) {
+    mapDeliveryPoints.value = [] // очищаем при закрытии
+    mapSearchQuery.value = ''
+  }
 })
 
 const handleEsc = (event: { key: string }) => {
@@ -53,6 +60,8 @@ watch(deliveryMethod, (newVal) => {
 const fromCity = ref('')
 const fromCityCode = ref<number | null>(null)
 const fromCityName = ref('')
+const fromCityLatitude = ref<number | undefined>(undefined)
+const fromCityLongitude = ref<number | undefined>(undefined)
 const fromCountryCode = ref('RU')
 const fromCitySelected = ref(false)
 const fromCitySuggestions = ref<Array<{ value: string; label: string; data: CdekCity }>>([])
@@ -68,6 +77,8 @@ const shipmentPoint = ref<string>('') // Код ПВЗ для самоприво
 const toCity = ref('')
 const toCityCode = ref<number | null>(null)
 const toCityName = ref('')
+const toCityLatitude = ref<number | undefined>(undefined)
+const toCityLongitude = ref<number | undefined>(undefined)
 const toCountryCode = ref('RU')
 const toCitySelected = ref(false)
 const toCitySuggestions = ref<Array<{ value: string; label: string; data: CdekCity }>>([])
@@ -160,6 +171,8 @@ const packageErrors = ref<PackageFieldErrors[]>([createEmptyPackageErrors()])
 const formErrors = reactive({
   fromCity: '',
   toCity: '',
+  fromAddress: '',
+  toAddress: '',
   fromPostalCode: '',
   toPostalCode: '',
 })
@@ -526,10 +539,19 @@ const handleFromCitySelect = (suggestion: { value: string; label: string; data?:
     fromCitySelected.value = true
     fromCityCode.value = suggestion.data.code
     fromCityName.value = suggestion.data.city || suggestion.data.full_name.split(',')[0].trim()
+    
+    // Сохраняем координаты только если они есть
+    if (suggestion.data.latitude !== undefined && suggestion.data.longitude !== undefined) {
+      fromCityLatitude.value = suggestion.data.latitude
+      fromCityLongitude.value = suggestion.data.longitude
+    }
+    
     fromCountryCode.value = suggestion.data.country_code || 'RU'
     console.log('Сохранены данные города отправления:', {
       code: fromCityCode.value,
       city: fromCityName.value,
+      latitude: fromCityLatitude.value,
+      longitude: fromCityLongitude.value,
       country: fromCountryCode.value,
     })
     formErrors.fromCity = ''
@@ -547,10 +569,19 @@ const handleToCitySelect = (suggestion: { value: string; label: string; data?: a
     toCitySelected.value = true
     toCityCode.value = suggestion.data.code
     toCityName.value = suggestion.data.city || suggestion.data.full_name.split(',')[0].trim()
+    
+    // Сохраняем координаты только если они есть
+    if (suggestion.data.latitude !== undefined && suggestion.data.longitude !== undefined) {
+      toCityLatitude.value = suggestion.data.latitude
+      toCityLongitude.value = suggestion.data.longitude
+    }
+    
     toCountryCode.value = suggestion.data.country_code || 'RU'
     console.log('Сохранены данные города получения:', {
       code: toCityCode.value,
       city: toCityName.value,
+      latitude: toCityLatitude.value,
+      longitude: toCityLongitude.value,
       country: toCountryCode.value,
     })
     formErrors.toCity = ''
@@ -576,6 +607,145 @@ const handleToAddressSelect = (suggestion: { value: string; label: string; data?
     formErrors.toPostalCode = ''
     calculationAlert.value = null
   }
+}
+
+// Функции для работы с картой
+const openMapForAddress = (context: 'from' | 'to') => {
+  const citySelected = context === 'from' ? fromCitySelected.value : toCitySelected.value
+  const cityName = context === 'from' ? fromCityName.value : toCityName.value
+  const cityLat = context === 'from' ? fromCityLatitude.value : toCityLatitude.value
+  const cityLon = context === 'from' ? fromCityLongitude.value : toCityLongitude.value
+  
+  console.log('Открытие карты:', { context, citySelected, cityName, cityLat, cityLon })
+  
+  if (!citySelected || !cityName) {
+    alert('Сначала выберите город из списка или карта откроется с центром в Москве')
+  }
+  
+  mapContext.value = context
+  mapDeliveryPoints.value = []
+  isMapModalOpen.value = true
+}
+
+const handlePointsUpdate = (points: any[]) => {
+  mapDeliveryPoints.value = points
+  console.log('Обновлен список точек:', points.length)
+}
+
+const filteredMapPoints = computed(() => {
+  if (!mapSearchQuery.value.trim()) {
+    return mapDeliveryPoints.value
+  }
+  const query = mapSearchQuery.value.toLowerCase()
+  return mapDeliveryPoints.value.filter(point => 
+    point.address?.toLowerCase().includes(query) ||
+    point.addressFull?.toLowerCase().includes(query) ||
+    point.code?.toLowerCase().includes(query)
+  )
+})
+
+const handlePointSelect = async (point: any) => {
+  console.log('Выбран пункт выдачи:', point)
+  
+  if (mapContext.value === 'from') {
+    // Заполняем код ПВЗ
+    shipmentPoint.value = point.code
+    
+    // Заполняем адрес (без города)
+    fromAddress.value = point.address || point.addressFull
+    formErrors.fromAddress = ''
+    
+    // Заполняем город
+    if (point.city) {
+      fromCity.value = point.city
+      fromCityName.value = point.city
+      fromCitySelected.value = true
+      formErrors.fromCity = ''
+      
+      // Сохраняем координаты точки как координаты города (приближение)
+      if (point.latitude !== undefined && point.longitude !== undefined) {
+        fromCityLatitude.value = point.latitude
+        fromCityLongitude.value = point.longitude
+        console.log('Установлены координаты из точки:', point.latitude, point.longitude)
+      }
+      
+      // Пытаемся получить полную информацию о городе из CDEK API
+      try {
+        const cities = await cdekService.suggestCities(point.city)
+        console.log('Результат suggestCities:', cities)
+        if (cities && cities.length > 0) {
+          const cityData = cities[0]
+          fromCityCode.value = cityData.code
+          fromCountryCode.value = cityData.country_code || 'RU'
+          
+          // Обновляем координаты из API только если они есть и отличаются
+          if (cityData.latitude !== undefined && cityData.longitude !== undefined) {
+            fromCityLatitude.value = cityData.latitude
+            fromCityLongitude.value = cityData.longitude
+            console.log('Обновлены координаты из API города:', cityData.latitude, cityData.longitude)
+          }
+          
+          if (cityData.postal_codes && cityData.postal_codes.length > 0) {
+            fromPostalCode.value = cityData.postal_codes[0]
+            formErrors.fromPostalCode = ''
+          }
+          console.log('Установлен код города отправления:', fromCityCode.value)
+        }
+      } catch (err: any) {
+        console.warn('Не удалось получить данные города:', err)
+      }
+    }
+  } else {
+    // Заполняем код ПВЗ
+    deliveryPoint.value = point.code
+    
+    // Заполняем адрес (без города)
+    toAddress.value = point.address || point.addressFull
+    formErrors.toAddress = ''
+    
+    // Заполняем город
+    if (point.city) {
+      toCity.value = point.city
+      toCityName.value = point.city
+      toCitySelected.value = true
+      formErrors.toCity = ''
+      
+      // Сохраняем координаты точки как координаты города (приближение)
+      if (point.latitude !== undefined && point.longitude !== undefined) {
+        toCityLatitude.value = point.latitude
+        toCityLongitude.value = point.longitude
+        console.log('Установлены координаты из точки:', point.latitude, point.longitude)
+      }
+      
+      // Пытаемся получить полную информацию о городе из CDEK API
+      try {
+        const cities = await cdekService.suggestCities(point.city)
+        console.log('Результат suggestCities:', cities)
+        if (cities && cities.length > 0) {
+          const cityData = cities[0]
+          toCityCode.value = cityData.code
+          toCountryCode.value = cityData.country_code || 'RU'
+          
+          // Обновляем координаты из API только если они есть и отличаются
+          if (cityData.latitude !== undefined && cityData.longitude !== undefined) {
+            toCityLatitude.value = cityData.latitude
+            toCityLongitude.value = cityData.longitude
+            console.log('Обновлены координаты из API города:', cityData.latitude, cityData.longitude)
+          }
+          
+          if (cityData.postal_codes && cityData.postal_codes.length > 0) {
+            toPostalCode.value = cityData.postal_codes[0]
+            formErrors.toPostalCode = ''
+          }
+          console.log('Установлен код города получения:', toCityCode.value)
+        }
+      } catch (err: any) {
+        console.warn('Не удалось получить данные города:', err)
+      }
+    }
+  }
+  
+  isMapModalOpen.value = false
 }
 
 // Watchers для автозаполнения
@@ -1110,7 +1280,7 @@ const resetForm = () => {
             />
           </div>
           <div class="map">
-            <p @click="isMapModalOpen = true">Указать на карте</p>
+            <p @click="openMapForAddress('from')">Указать на карте</p>
             <svg
               width="19"
               height="19"
@@ -1137,15 +1307,54 @@ const resetForm = () => {
         <div v-if="isMapModalOpen" class="modal-overlay" @click.self="isMapModalOpen = false">
           <div class="modal-window">
             <div class="ymap-container">
-              <YMap />
+              <YMap
+                :city-name="mapContext === 'from' ? fromCityName : toCityName"
+                :city-latitude="mapContext === 'from' ? fromCityLatitude : toCityLatitude"
+                :city-longitude="mapContext === 'from' ? fromCityLongitude : toCityLongitude"
+                @select-point="handlePointSelect"
+                @update-points="handlePointsUpdate"
+              />
             </div>
             <div class="left-side-container">
               <div class="close-btn-container">
                 <button class="close-btn" @click="isMapModalOpen = false">×</button>
               </div>
               <div class="list">
-                <Input height="54px" width="100%" placeholder="Найти" />
-                <PVZCard PVZName="СДЭК" address="Улица Мира" />
+                <div v-if="mapDeliveryPoints.length === 0" style="padding: 20px; color: #666; text-align: center;">
+                  <p style="margin: 0 0 12px; font-size: 16px; font-weight: 600;">
+                    {{ (mapContext === 'from' ? fromCityName : toCityName) || 'Город не выбран' }}
+                  </p>
+                  <p style="margin: 0; font-size: 14px;">
+                    {{ mapContext === 'from' ? 'Переместите карту для загрузки пунктов отправки' : 'Переместите карту для загрузки пунктов получения' }}
+                  </p>
+                </div>
+                <div v-else style="display: flex; flex-direction: column; height: 100%;">
+                  <div style="padding: 12px; border-bottom: 1px solid #eee;">
+                    <Input 
+                      v-model="mapSearchQuery" 
+                      height="44px" 
+                      width="100%" 
+                      placeholder="Поиск по адресу или коду" 
+                    />
+                    <p style="margin: 8px 0 0; font-size: 12px; color: #999;">
+                      Найдено: {{ filteredMapPoints.length }} из {{ mapDeliveryPoints.length }}
+                    </p>
+                  </div>
+                  <div style="overflow-y: auto; flex: 1; padding: 8px;">
+                    <div v-if="filteredMapPoints.length === 0" style="padding: 20px; color: #666; text-align: center;">
+                      Ничего не найдено
+                    </div>
+                    <PVZCard
+                      v-for="point in filteredMapPoints"
+                      :key="point.code"
+                      :PVZName="point.type === 'POSTAMAT' ? 'Постамат' : 'ПВЗ'"
+                      :address="point.addressFull || point.address"
+                      :code="point.code"
+                      @click="handlePointSelect(point)"
+                      style="cursor: pointer; margin-bottom: 8px;"
+                    />
+                  </div>
+                </div>
               </div>
             </div>
           </div>
@@ -1196,7 +1405,7 @@ const resetForm = () => {
             />
           </div>
           <div class="map">
-            <p @click="isMapModalOpen = true">Указать на карте</p>
+            <p @click="openMapForAddress('to')">Указать на карте</p>
             <svg
               width="19"
               height="19"

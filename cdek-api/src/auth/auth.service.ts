@@ -6,12 +6,15 @@ import {
 } from '@nestjs/common';
 import { PrismaService } from '../prisma/prisma.service';
 import { TokenService } from './token.service';
+import { SmsService } from '../sms/sms.service';
 import {
   ForgotResetDto,
   ForgotStartDto,
   ForgotVerifyDto,
   LoginDto,
   RegisterDto,
+  RegisterSendCodeDto,
+  RegisterVerifyCodeDto,
 } from './dto/auth.dto';
 import * as bcrypt from 'bcrypt';
 import { randomBytes, randomInt } from 'node:crypto';
@@ -35,94 +38,81 @@ export class AuthService {
   constructor(
     private readonly prisma: PrismaService,
     private readonly tokenService: TokenService,
+    private readonly smsService: SmsService,
   ) {}
 
   private readonly resetCodeTtlMs = 10 * 60_000; // 10 минут
   private readonly resetMaxAttempts = 5;
 
   /**
-   * Регистрация нового пользователя
+   * Регистрация нового пользователя (упрощенная, без компании)
    */
   async register(registerDto: RegisterDto): Promise<AuthResponse> {
-    const { user: u, company: c } = registerDto;
+    const normalizedPhone = this.normalizePhone(registerDto.phone);
 
-    const normalizedPhone = this.normalizePhone(u.phone);
-    const normalizedCompanyPhone = c.phone
-      ? this.normalizePhone(c.phone)
-      : null;
+    // Проверяем, что код был верифицирован
+    const verifiedCode = await this.prisma.passwordResetCode.findFirst({
+      where: {
+        phone: normalizedPhone,
+        userId: null, // null для кодов регистрации
+        isUsed: true,
+        usedAt: { not: null },
+      },
+      orderBy: { usedAt: 'desc' },
+    });
 
-    // проверяем уникальность телефона пользователя
+    if (!verifiedCode || verifiedCode.usedAt! < new Date(Date.now() - 5 * 60_000)) {
+      throw new BadRequestException('Необходимо сначала подтвердить номер телефона');
+    }
+
+    // Проверяем уникальность телефона
     const existingUser = await this.prisma.user.findUnique({
       where: { phone: normalizedPhone },
       select: { id: true },
     });
+
     if (existingUser) {
-      throw new ConflictException(
-        'Пользователь с таким номером телефона уже существует',
-      );
+      throw new ConflictException('Пользователь с таким номером телефона уже зарегистрирован');
     }
 
-    // хеш пароля
-    const hashedPassword = await bcrypt.hash(u.password, 12);
+    // Хеш пароля
+    const hashedPassword = await bcrypt.hash(registerDto.password, 12);
 
     try {
-      const created = await this.prisma.$transaction(async (tx) => {
-        // создаём пользователя
-        const user = await tx.user.create({
-          data: {
-            phone: normalizedPhone,
-            email: u.email || null,
-            password: hashedPassword,
-            firstName: u.firstName,
-            lastName: u.lastName,
-          },
-          select: { id: true, phone: true, createdAt: true },
-        });
-
-        // создаём компанию (1:1)
-        await tx.company.create({
-          data: {
-            userId: user.id,
-            companyType: c.companyType,
-            companyName: c.companyName,
-            inn: c.inn,
-            kpp: c.kpp || null,
-            ogrn: c.ogrn,
-            email: c.email || null,
-            phone: normalizedCompanyPhone,
-            bik: c.bik,
-            settlementAccount: c.settlementAccount,
-            correspondentAccount: c.correspondentAccount,
-            actualAddress: c.actualAddress,
-            legalIndex: c.legalIndex,
-            legalCity: c.legalCity,
-            legalAddress: c.legalAddress,
-          },
-        });
-
-        return user;
+      const user = await this.prisma.user.create({
+        data: {
+          phone: normalizedPhone,
+          email: registerDto.email,
+          firstName: registerDto.firstName,
+          lastName: registerDto.lastName,
+          password: hashedPassword,
+        },
       });
 
-      // токены
-      const tokens = await this.tokenService.generateTokens(
-        created.id,
-        created.phone,
-      );
-      return { user: created, ...tokens };
+      // Удаляем использованный код
+      await this.prisma.passwordResetCode.deleteMany({
+        where: { phone: normalizedPhone, userId: null },
+      });
+
+      // Генерируем токены
+      const tokens = await this.tokenService.generateTokens(user.id, user.phone);
+
+      return {
+        user: {
+          id: user.id,
+          phone: user.phone,
+          createdAt: user.createdAt,
+        },
+        ...tokens,
+      };
     } catch (e: any) {
-      // ловим уникальные ограничения (например, inn)
       if (e.code === 'P2002') {
-        // @ts-ignore
-        const target = (e.meta?.target as string[])?.join(', ') || '';
-        if (target.includes('inn')) {
-          throw new ConflictException(
-            'Организация с таким ИНН уже зарегистрирована',
-          );
+        const target = e.meta?.target;
+        if (Array.isArray(target) && target.includes('phone')) {
+          throw new ConflictException('Пользователь с таким номером телефона уже зарегистрирован');
         }
-        if (target.includes('email')) {
-          throw new ConflictException(
-            'Пользователь с такой почтой уже существует',
-          );
+        if (Array.isArray(target) && target.includes('email')) {
+          throw new ConflictException('Пользователь с такой почтой уже зарегистрирован');
         }
       }
       throw e;
@@ -451,5 +441,95 @@ export class AuthService {
       [all[i], all[j]] = [all[j], all[i]];
     }
     return all.join('');
+  }
+
+  /**
+   * Отправка кода подтверждения для регистрации
+   */
+  async sendRegistrationCode(dto: RegisterSendCodeDto): Promise<string | void> {
+    const normalizedPhone = this.normalizePhone(dto.phone);
+
+    // Проверяем, не зарегистрирован ли уже пользователь
+    const existingUser = await this.prisma.user.findUnique({
+      where: { phone: normalizedPhone },
+      select: { id: true },
+    });
+
+    if (existingUser) {
+      throw new ConflictException('Пользователь с таким номером телефона уже зарегистрирован');
+    }
+
+    const code = randomInt(100_000, 1_000_000).toString(); // 6-значный код
+    const codeHash = await bcrypt.hash(code, 10);
+    const expiresAt = new Date(Date.now() + this.resetCodeTtlMs);
+
+    // Создаем запись кода (используем userId = null для регистрации)
+    await this.prisma.$transaction(async (tx) => {
+      // Удаляем старые коды для этого телефона
+      await tx.passwordResetCode.deleteMany({
+        where: { phone: normalizedPhone, userId: null },
+      });
+
+      // Создаем новый код
+      await tx.passwordResetCode.create({
+        data: {
+          userId: null, // null для регистрации (пользователя еще нет)
+          phone: normalizedPhone,
+          codeHash,
+          expiresAt,
+        },
+      });
+    });
+
+    // Отправляем SMS
+    try {
+      await this.smsService.sendSms(normalizedPhone, code);
+    } catch (error) {
+      // В dev-режиме возвращаем код
+      if (process.env.NODE_ENV === 'development') {
+        return `[DEV] registration code for ${normalizedPhone}: ${code}`;
+      }
+      throw error;
+    }
+
+    // В dev возвращаем код для удобства
+    if (process.env.NODE_ENV === 'development') {
+      return `[DEV] registration code for ${normalizedPhone}: ${code}`;
+    }
+  }
+
+  /**
+   * Верификация кода для регистрации (не создает пользователя)
+   */
+  async verifyRegistrationCode(dto: RegisterVerifyCodeDto): Promise<void> {
+    const normalizedPhone = this.normalizePhone(dto.phone);
+
+    const record = await this.prisma.passwordResetCode.findFirst({
+      where: { phone: normalizedPhone, userId: null, isUsed: false },
+      orderBy: { createdAt: 'desc' },
+    });
+
+    if (
+      !record ||
+      record.expiresAt < new Date() ||
+      record.attempts >= this.resetMaxAttempts
+    ) {
+      throw new BadRequestException('Код истёк или неверен');
+    }
+
+    const ok = await bcrypt.compare(dto.code, record.codeHash);
+
+    await this.prisma.passwordResetCode.update({
+      where: { id: record.id },
+      data: {
+        attempts: record.attempts + 1,
+        isUsed: ok ? true : record.isUsed,
+        usedAt: ok ? new Date() : null,
+      },
+    });
+
+    if (!ok) {
+      throw new BadRequestException('Неверный код');
+    }
   }
 }

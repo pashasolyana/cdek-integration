@@ -30,12 +30,30 @@ interface DeliveryPoint {
   haveCashless: boolean | null
 }
 
+interface Props {
+  cityName?: string
+  cityLatitude?: number
+  cityLongitude?: number
+}
+
+const props = withDefaults(defineProps<Props>(), {
+  cityName: '',
+  cityLatitude: 55.755819,
+  cityLongitude: 37.617644,
+})
+
+const emit = defineEmits<{
+  selectPoint: [point: DeliveryPoint]
+  updatePoints: [points: DeliveryPoint[]]
+}>()
+
 const deliveryPoints = ref<DeliveryPoint[]>([])
 const loading = ref(false)
 const error = ref<string | null>(null)
 const selectedPoint = ref<DeliveryPoint | null>(null)
 const showInfo = ref(false)
 const isInitialLoad = ref(true)
+const isMapReady = ref(false)
 
 const pointList = computed(() => {
   return deliveryPoints.value
@@ -46,8 +64,13 @@ const pointList = computed(() => {
     }))
 })
 
-const mapCenter = ref<[number, number]>([37.617644, 55.755819]) // Москва по умолчанию
-const mapZoom = ref(10)
+const mapCenter = ref<[number, number]>([
+  props.cityLongitude || 37.617644,
+  props.cityLatitude || 55.755819
+])
+const mapZoom = ref(props.cityName ? 12 : 10)
+
+console.log('🗺️ YMap инициализирован с координатами:', mapCenter.value, 'zoom:', mapZoom.value, 'город:', props.cityName)
 
 const map = shallowRef<YMap | null>(null)
 const clusterer = shallowRef<YMapClusterer | null>(null)
@@ -91,6 +114,11 @@ const getMapBounds = () => {
 
 // Загрузка пунктов выдачи для текущей области карты
 const loadDeliveryPointsForCurrentView = async () => {
+  if (!isMapReady.value) {
+    console.log('⏳ Карта еще не готова, пропускаем загрузку')
+    return
+  }
+  
   console.log('🔄 Начало загрузки точек...')
   
   const bounds = getMapBounds()
@@ -108,7 +136,7 @@ const loadDeliveryPointsForCurrentView = async () => {
       lat_max: bounds.lat_max,
       lon_min: bounds.lon_min,
       lon_max: bounds.lon_max,
-      limit: 1000
+      limit: 500
     })
     
     const response = await cdekService.getDeliveryPointsFromDb({
@@ -116,7 +144,7 @@ const loadDeliveryPointsForCurrentView = async () => {
       lat_max: bounds.lat_max,
       lon_min: bounds.lon_min,
       lon_max: bounds.lon_max,
-      limit: 1000,
+      limit: 500,
       offset: 0
     })
     
@@ -124,16 +152,16 @@ const loadDeliveryPointsForCurrentView = async () => {
     
     if (response.rows && response.rows.length > 0) {
       deliveryPoints.value = response.rows
+      emit('updatePoints', response.rows)
       console.log(`✅ Загружено ${response.rows.length} точек для текущей области`)
-      console.log('📍 Первая точка:', response.rows[0])
     } else {
       deliveryPoints.value = []
+      emit('updatePoints', [])
       console.log('⚠️ В текущей области нет пунктов выдачи')
     }
   } catch (e: any) {
     error.value = e.message || 'Ошибка загрузки пунктов выдачи'
     console.error('❌ Ошибка загрузки ПВЗ:', e)
-    console.error('❌ Детали ошибки:', e.response?.data)
   } finally {
     loading.value = false
   }
@@ -147,13 +175,12 @@ const debouncedLoadPoints = () => {
   
   loadTimeout = setTimeout(() => {
     loadDeliveryPointsForCurrentView()
-  }, 500) // Задержка 500мс после остановки перемещения карты
+  }, 800) // Увеличена задержка для снижения нагрузки
 }
 
 // Обработчик изменения области просмотра
 const handleMapUpdate = () => {
-  if (isInitialLoad.value) {
-    // Пропускаем первое обновление при инициализации
+  if (isInitialLoad.value || !isMapReady.value) {
     return
   }
   debouncedLoadPoints()
@@ -256,6 +283,14 @@ const handleMarkerClick = (point: DeliveryPoint) => {
   showInfo.value = true
 }
 
+// Выбор пункта выдачи
+const selectDeliveryPoint = () => {
+  if (selectedPoint.value) {
+    emit('selectPoint', selectedPoint.value)
+    closeInfo()
+  }
+}
+
 // Закрытие информационной панели
 const closeInfo = () => {
   showInfo.value = false
@@ -278,6 +313,7 @@ const loadAllPoints = async () => {
     
     if (response.rows && response.rows.length > 0) {
       deliveryPoints.value = response.rows
+      emit('updatePoints', response.rows)
       console.log(`✅ Загружено ${response.rows.length} точек (всего)`)
       
       // Центрируем карту на первой точке
@@ -297,6 +333,7 @@ const loadAllPoints = async () => {
 
 onMounted(async () => {
   console.log('🚀 Компонент YMap монтируется...')
+  console.log('📍 Город:', props.cityName, 'Координаты:', props.cityLatitude, props.cityLongitude)
   
   if (version.startsWith('2')) {
     console.warn('⚠️ Vue версии 2 обнаружена, некоторые функции могут не работать')
@@ -305,12 +342,14 @@ onMounted(async () => {
   
   // Ждём инициализации карты
   console.log('⏳ Ожидание инициализации карты...')
-  await new Promise(resolve => setTimeout(resolve, 1000))
+  await new Promise(resolve => setTimeout(resolve, 1500))
+  
+  isMapReady.value = true
+  isInitialLoad.value = false
   
   // Загружаем точки для текущей области после инициализации
   if (map.value) {
     console.log('✅ Карта инициализирована, загружаем точки')
-    isInitialLoad.value = false
     await loadDeliveryPointsForCurrentView()
   } else {
     console.warn('⚠️ Карта не инициализирована после таймаута')
@@ -325,12 +364,12 @@ onMounted(async () => {
 
 watch(map, (val) => {
   console.log('🗺️ Map watch triggered, значение:', val ? 'есть' : 'нет')
-  if (val && isInitialLoad.value) {
-    // Карта инициализирована, загружаем точки
-    console.log('✅ Карта готова в watch, загружаем точки через 1 секунду')
-    setTimeout(async () => {
+  if (val && !isMapReady.value) {
+    console.log('✅ Карта готова в watch, устанавливаем флаг готовности')
+    setTimeout(() => {
+      isMapReady.value = true
       isInitialLoad.value = false
-      await loadDeliveryPointsForCurrentView()
+      loadDeliveryPointsForCurrentView()
     }, 1000)
   }
 })
@@ -338,10 +377,34 @@ watch(map, (val) => {
 watch(clusterer, (val) => console.log('📍 Clusterer:', val ? 'инициализирован' : 'нет'))
 
 // Отслеживаем изменения bounds карты (перемещение, зум)
-watch(() => map.value?.bounds, (newBounds) => {
-  console.log('🔄 Bounds изменились:', newBounds)
-  handleMapUpdate()
+watch(() => map.value?.bounds, (newBounds, oldBounds) => {
+  if (!isMapReady.value || isInitialLoad.value) return
+  
+  // Проверяем, действительно ли bounds изменились
+  if (JSON.stringify(newBounds) !== JSON.stringify(oldBounds)) {
+    console.log('🔄 Bounds изменились, планируем загрузку')
+    handleMapUpdate()
+  }
 }, { deep: true })
+
+// Отслеживаем изменения входных координат города
+watch(() => [props.cityLatitude, props.cityLongitude, props.cityName], ([lat, lon, city]) => {
+  console.log('🔍 Props изменились:', { city, lat, lon })
+  if (city && lat && lon) {
+    console.log('🎯 Город изменился, центрируем карту:', city, lat, lon)
+    mapCenter.value = [Number(lon), Number(lat)]
+    mapZoom.value = 12
+    
+    // Загружаем точки через небольшую задержку после центрирования
+    setTimeout(() => {
+      if (isMapReady.value) {
+        loadDeliveryPointsForCurrentView()
+      }
+    }, 1000)
+  } else {
+    console.log('⚠️ Недостаточно данных для центрирования:', { city, lat, lon })
+  }
+})
 
 </script>
 
@@ -528,10 +591,10 @@ watch(() => map.value?.bounds, (newBounds) => {
                   </span>
                   <span v-if="selectedPoint.haveCashless" class="capability-badge capability-primary">
                     <svg width="14" height="14" viewBox="0 0 14 14" fill="none">
-                      <rect x="2" y="3" width="10" height="7" rx="1" stroke="currentColor" stroke-width="1.5"/>
+                      <rect x="2" y="3" width="10" height="8" rx="1" stroke="currentColor" stroke-width="1.5"/>
                       <path d="M2 6H12" stroke="currentColor" stroke-width="1.5"/>
                     </svg>
-                    Безналичные
+                    Карта
                   </span>
                 </div>
               </div>
@@ -554,6 +617,16 @@ watch(() => map.value?.bounds, (newBounds) => {
               </div>
             </div>
           </div>
+        </div>
+
+        <!-- Кнопка выбора -->
+        <div class="info-footer">
+          <button class="select-point-btn" @click="selectDeliveryPoint">
+            <svg width="20" height="20" viewBox="0 0 20 20" fill="none">
+              <path d="M16 8L9 15L4 10" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/>
+            </svg>
+            Выбрать этот пункт выдачи
+          </button>
         </div>
       </div>
     </transition>
@@ -1094,5 +1167,44 @@ watch(() => map.value?.bounds, (newBounds) => {
     height: 40px;
     font-size: 20px;
   }
+}
+
+.info-footer {
+  padding: 16px 24px;
+  background: #f8f9fa;
+  border-top: 1px solid #eee;
+}
+
+.select-point-btn {
+  width: 100%;
+  padding: 14px 24px;
+  background: linear-gradient(135deg, #00B956 0%, #00A050 100%);
+  color: white;
+  border: none;
+  border-radius: 10px;
+  font-size: 16px;
+  font-weight: 700;
+  cursor: pointer;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 10px;
+  transition: all 0.2s;
+  box-shadow: 0 4px 12px rgba(0, 185, 86, 0.3);
+}
+
+.select-point-btn:hover {
+  background: linear-gradient(135deg, #00A050 0%, #008f45 100%);
+  transform: translateY(-2px);
+  box-shadow: 0 6px 16px rgba(0, 185, 86, 0.4);
+}
+
+.select-point-btn:active {
+  transform: translateY(0);
+  box-shadow: 0 2px 8px rgba(0, 185, 86, 0.3);
+}
+
+.select-point-btn svg {
+  flex-shrink: 0;
 }
 </style>

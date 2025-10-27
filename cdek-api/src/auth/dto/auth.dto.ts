@@ -125,15 +125,74 @@ export class RegisterCompanyDto {
   legalAddress: string;
 }
 
+// Упрощенная регистрация (без компании)
 export class RegisterDto {
-  @ValidateNested()
-  @Type(() => RegisterUserDto)
-  user: RegisterUserDto;
+  @IsNotEmpty({ message: 'Имя обязательно' })
+  @IsString()
+  @Transform(({ value }) => value?.trim())
+  firstName: string;
 
-  @ValidateNested()
-  @Type(() => RegisterCompanyDto)
-  company: RegisterCompanyDto;
+  @IsNotEmpty({ message: 'Фамилия обязательна' })
+  @IsString()
+  @Transform(({ value }) => value?.trim())
+  lastName: string;
+
+  @IsOptional()
+  @IsEmail({}, { message: 'Некорректная почта' })
+  @Transform(({ value }) => value?.trim())
+  email?: string;
+
+  @IsNotEmpty({ message: 'Номер телефона обязателен' })
+  @IsString({ message: 'Номер телефона должен быть строкой' })
+  @Transform(({ value }) => value?.trim())
+  @Matches(
+    /^(\+?7|8)[\s\-\(\)]?\d{3}[\s\-\(\)]?\d{3}[\s\-]?\d{2}[\s\-]?\d{2}$|^[78]\d{10}$/,
+    { message: PHONE_HINT },
+  )
+  phone: string;
+
+  @IsNotEmpty({ message: 'Пароль обязателен' })
+  @IsString({ message: 'Пароль должен быть строкой' })
+  @MinLength(8, { message: 'Пароль должен содержать минимум 8 символов' })
+  @Matches(/(?=.*[a-zа-яё])/, { message: 'Нужна хотя бы одна строчная буква' })
+  @Matches(/(?=.*[A-ZА-ЯЁ])/, { message: 'Нужна хотя бы одна заглавная буква' })
+  @Matches(/(?=.*\d)/, { message: 'Нужна хотя бы одна цифра' })
+  @Matches(/(?=.*[^0-9A-Za-zА-Яа-яЁё_\s])/, {
+    message: 'Нужен хотя бы один спецсимвол',
+  })
+  password: string;
 }
+
+// DTO для запроса кода подтверждения при регистрации
+export class RegisterSendCodeDto {
+  @IsNotEmpty({ message: 'Номер телефона обязателен' })
+  @IsString()
+  @Transform(({ value }) => value?.trim())
+  @Matches(
+    /^(\+?7|8)[\s\-\(\)]?\d{3}[\s\-\(\)]?\d{3}[\s\-]?\d{2}[\s\-]?\d{2}$|^[78]\d{10}$/,
+    { message: PHONE_HINT },
+  )
+  phone: string;
+}
+
+// DTO для верификации кода при регистрации
+export class RegisterVerifyCodeDto {
+  @IsNotEmpty({ message: 'Номер телефона обязателен' })
+  @IsString()
+  @Transform(({ value }) => value?.trim())
+  @Matches(
+    /^(\+?7|8)[\s\-\(\)]?\d{3}[\s\-\(\)]?\d{3}[\s\-]?\d{2}[\s\-]?\d{2}$|^[78]\d{10}$/,
+    { message: PHONE_HINT },
+  )
+  phone: string;
+
+  @IsNotEmpty({ message: 'Код обязателен' })
+  @Matches(/^\d{6}$/, { message: 'Код должен состоять из 6 цифр' })
+  code: string;
+}
+
+// DTO для создания/обновления компании в личном кабинете
+export class UpsertCompanyDto extends RegisterCompanyDto {}
 
 export class LoginDto {
   @IsNotEmpty()

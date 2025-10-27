@@ -38,7 +38,7 @@ model User {
 
 model PasswordResetCode {
   id        Int       @id @default(autoincrement())
-  userId    Int
+  userId    Int? // Nullable для кодов регистрации (userId = null)
   phone     String
   codeHash  String
   attempts  Int       @default(0)
@@ -47,7 +47,7 @@ model PasswordResetCode {
   createdAt DateTime  @default(now()) @map("created_at")
   usedAt    DateTime? @map("used_at")
 
-  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+  user User? @relation(fields: [userId], references: [id], onDelete: Cascade)
 
   @@index([userId])
   @@index([phone])

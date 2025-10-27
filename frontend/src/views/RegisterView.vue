@@ -2,485 +2,190 @@
   <div class="register-page">
     <div class="register-modal">
       <div class="register-container">
-        <div class="register-controls" v-if="currentStep === 2">
-          <button type="button" class="back-button" aria-label="Назад" @click="goToStep(1)">
-            <svg viewBox="0 0 24 24" aria-hidden="true">
-              <path :d="mdiArrowLeft" />
-            </svg>
-          </button>
-        </div>
+        <!-- Кнопка назад (только на шагах 2 и 3) -->
+        <button v-if="currentStep > 1" class="back-button" @click="goBack">
+          <svg viewBox="0 0 24 24" width="24" height="24">
+            <path :d="mdiArrowLeft" fill="currentColor" />
+          </svg>
+        </button>
 
         <header class="register-header">
-          <h2 class="register-title">
-            {{ currentStep === 1 ? 'Регистрация' : 'Юридические реквизиты' }}
-          </h2>
-          <p class="register-subtitle" v-if="currentStep === 1">
-            Зарегистрируйтесь и создавайте <br />
-            заказы как компания
-          </p>
-          <p class="register-subtitle" v-else>
-            Укажите данные организации, чтобы завершить регистрацию
+          <h2 class="register-title">Регистрация</h2>
+          <p class="register-subtitle">
+            Создайте аккаунт для работы<br />с сервисом доставки
           </p>
         </header>
 
-        <!-- ===== ШАГ 1 ===== -->
-        <form
-          v-if="currentStep === 1"
-          class="register-form"
-          novalidate
-          @submit.prevent="toJuridicalStep"
-        >
-          <!-- Имя -->
+        <!-- Шаг 1: Основные данные -->
+        <form v-if="currentStep === 1" class="register-form" novalidate @submit.prevent="sendCode">
           <div class="form-field">
-            <label class="field-label">
-              <span class="field-required">*</span><span class="field-header">Имя</span>
-            </label>
+            <label class="field-label">Имя <span class="field-required">*</span></label>
             <input
               class="form-input"
-              v-model="registerFormIndividual.name"
+              v-model="form.firstName"
               type="text"
               placeholder="Иван"
-              autocomplete="given-name"
-              :class="inputClass(nameValid, 'name')"
-              :aria-invalid="t.name && !nameValid"
-              @blur="touch('name')"
+              :class="inputClass(nameValid, 'firstName')"
+              @blur="touch('firstName')"
             />
-            <p v-if="t.name && !nameValid" class="field-error">Укажите имя</p>
+            <p v-if="t.firstName && !nameValid" class="field-error">Имя обязательно</p>
           </div>
 
-          <!-- Фамилия -->
           <div class="form-field">
-            <label class="field-label">
-              <span class="field-required">*</span><span class="field-header">Фамилия</span>
-            </label>
+            <label class="field-label">Фамилия <span class="field-required">*</span></label>
             <input
               class="form-input"
-              v-model="registerFormIndividual.surname"
+              v-model="form.lastName"
               type="text"
               placeholder="Иванов"
-              autocomplete="family-name"
-              :class="inputClass(surnameValid, 'surname')"
-              :aria-invalid="t.surname && !surnameValid"
-              @blur="touch('surname')"
+              :class="inputClass(surnameValid, 'lastName')"
+              @blur="touch('lastName')"
             />
-            <p v-if="t.surname && !surnameValid" class="field-error">Укажите фамилию</p>
+            <p v-if="t.lastName && !surnameValid" class="field-error">Фамилия обязательна</p>
           </div>
 
-          <!-- Почта (опц.) -->
           <div class="form-field">
-            <label class="field-label">
-              <span class="field-header">Почта</span>
-            </label>
+            <label class="field-label">Email (необязательно)</label>
             <input
               class="form-input"
-              v-model="registerFormIndividual.email"
+              v-model="form.email"
               type="email"
-              placeholder="example@example.ru"
-              autocomplete="email"
-              :class="inputClass(emailValid || !registerFormIndividual.email, 'email')"
-              :aria-invalid="t.email && !!registerFormIndividual.email && !emailValid"
+              placeholder="example@mail.com"
+              :class="inputClass(emailValidOrEmpty, 'email')"
               @blur="touch('email')"
             />
-            <p v-if="t.email && registerFormIndividual.email && !emailValid" class="field-error">
-              Некорректный e-mail
-            </p>
+            <p v-if="t.email && !emailValidOrEmpty" class="field-error">Некорректный email</p>
           </div>
 
-          <!-- Телефон -->
           <div class="form-field">
-            <label class="field-label">
-              <span class="field-required">*</span><span class="field-header">Номер телефона</span>
-            </label>
+            <label class="field-label">Номер телефона <span class="field-required">*</span></label>
             <input
               class="form-input"
-              v-model="registerFormIndividual.phone"
+              v-model="form.phone"
               type="tel"
               inputmode="tel"
               placeholder="+7(999)999-99-99"
-              :class="inputClass(userPhoneValid, 'userPhone')"
-              :aria-invalid="t.userPhone && !userPhoneValid"
-              @blur="touch('userPhone')"
+              :class="inputClass(phoneValid, 'phone')"
+              @blur="touch('phone')"
             />
-            <p v-if="t.userPhone && !userPhoneValid" class="field-error">
-              Формат RU: +7… / 8… / 7…
-            </p>
+            <p v-if="t.phone && !phoneValid" class="field-error">Формат RU: +7… / 8… / 7…</p>
           </div>
 
-          <!-- Пароль -->
+          <p v-if="serverError" class="server-error">{{ serverError }}</p>
+
+          <button type="submit" class="btn btn-primary" :disabled="loading || !step1Valid">
+            {{ loading ? 'Отправка...' : 'Получить код' }}
+          </button>
+
+          <div class="authorize">
+            Уже есть аккаунт? <a href="/login">Войти</a>
+          </div>
+        </form>
+
+        <!-- Шаг 2: Ввод SMS кода -->
+        <div v-if="currentStep === 2" class="code-form">
+          <p class="code-label">
+            Введите код из SMS<br />
+            <span class="masked-phone">{{ maskedPhone }}</span>
+          </p>
+
+          <div class="code-inputs" :class="{ invalid: isInvalid }">
+            <input
+              v-for="i in 6"
+              :key="i"
+              :ref="(el) => (codeRefs[i - 1] = el as HTMLInputElement)"
+              type="text"
+              inputmode="numeric"
+              maxlength="1"
+              class="code-box"
+              :value="code[i - 1]"
+              @input="(e) => onDigitInput(i - 1, e)"
+              @keydown.backspace="() => onBackspace(i - 1)"
+              @paste="onPaste"
+            />
+          </div>
+
+          <p v-if="isInvalid" class="field-error" style="text-align: center; margin-top: 8px">
+            Неверный код
+          </p>
+
+          <p class="hint">Не получили код?</p>
+
+          <p v-if="!canResend" class="timer active">Повторная отправка через {{ timeLeft }}</p>
+
+          <button v-else class="resend" @click="resendCode" :disabled="loading">
+            {{ loading ? 'Отправка...' : 'Отправить снова' }}
+          </button>
+
+          <p v-if="serverError" class="server-error" style="margin-top: 12px">{{ serverError }}</p>
+
+          <button
+            class="btn btn-primary verify-btn"
+            :disabled="!complete || loading"
+            @click="verifyCode"
+          >
+            {{ loading ? 'Проверка...' : 'Продолжить' }}
+          </button>
+        </div>
+
+        <!-- Шаг 3: Пароль -->
+        <form v-if="currentStep === 3" class="register-form" novalidate @submit.prevent="finishRegistration">
+          <div class="form-section-title">Создайте пароль</div>
+
           <div class="form-field">
-            <label class="field-label">
-              <span class="field-required">*</span><span class="field-header">Пароль</span>
-            </label>
+            <label class="field-label">Пароль <span class="field-required">*</span></label>
             <input
               class="form-input"
-              v-model="registerFormIndividual.password"
+              v-model="form.password"
               type="password"
+              placeholder="Введите пароль"
               :class="inputClass(allPwdRulesOk, 'password')"
-              :aria-invalid="t.password && !allPwdRulesOk"
               @blur="touch('password')"
             />
           </div>
 
-          <!-- Подтверждение -->
-          <div class="form-field">
-            <label class="field-label">
-              <span class="field-required">*</span
-              ><span class="field-header">Подтвердите пароль</span>
-            </label>
-            <input
-              class="form-input"
-              v-model="registerFormIndividual.confirmPassword"
-              type="password"
-              :class="inputClass(passwordsMatch, 'confirm')"
-              :aria-invalid="t.confirm && !passwordsMatch"
-              @blur="touch('confirm')"
-            />
-            <p
-              v-if="registerFormIndividual.confirmPassword !== ''"
-              :class="passwordsMatch ? 'hint-ok' : 'hint-err'"
-              class="confirm-hint"
-              aria-live="polite"
-            >
-              {{ passwordsMatch ? 'Пароли совпадают' : 'Пароли не совпадают' }}
-            </p>
-            <p v-if="t.password && !allPwdRulesOk" class="field-error">
-              Пароль не соответствует правилам ниже
-            </p>
-          </div>
-
           <!-- Правила пароля -->
-          <div class="password__container" aria-live="polite">
-            <p class="password-header">Пароль должен содержать:</p>
-            <div class="password-rules">
-              <ul class="rules-col">
-                <li :class="{ ok: hasMinLen }"><i aria-hidden="true"></i> Не менее 8 символов</li>
-                <li :class="{ ok: hasDigit }"><i aria-hidden="true"></i> Цифры</li>
-              </ul>
-              <ul class="rules-col">
-                <li :class="{ ok: hasUpper }"><i aria-hidden="true"></i> Заглавные буквы</li>
-                <li :class="{ ok: hasLower }"><i aria-hidden="true"></i> Строчные буквы</li>
-                <li :class="{ ok: hasSpecial }"><i aria-hidden="true"></i> Спецсимволы</li>
-              </ul>
+          <div class="password-rules">
+            <div class="rules-col">
+              <li :class="{ ok: hasMinLen }">
+                <i></i>Минимум 8 символов
+              </li>
+              <li :class="{ ok: hasDigit }">
+                <i></i>Хотя бы одна цифра
+              </li>
+              <li :class="{ ok: hasUpper }">
+                <i></i>Заглавная буква
+              </li>
+            </div>
+            <div class="rules-col">
+              <li :class="{ ok: hasLower }">
+                <i></i>Строчная буква
+              </li>
+              <li :class="{ ok: hasSpecial }">
+                <i></i>Спецсимвол (!@#$%...)
+              </li>
             </div>
           </div>
 
-          <p v-if="serverError && currentStep === 1" class="server-error" role="alert">
-            {{ serverError }}
-          </p>
-
-          <button
-            type="submit"
-            class="btn btn-primary registration-btn-main"
-            :disabled="loading || !mainFormValid"
-          >
-            {{ loading ? 'Проверка…' : 'Далее' }}
-          </button>
-          <div class="authorize">Есть аккаунт? <a href="/login">Авторизоваться</a></div>
-        </form>
-
-        <!-- ===== ШАГ 2 ===== -->
-        <form v-else class="register-form" novalidate @submit.prevent="finishRegistration">
           <div class="form-field">
-            <label class="field-label"
-              ><span class="field-required">*</span><span class="field-header">Тип</span></label
-            >
+            <label class="field-label">Подтверждение пароля <span class="field-required">*</span></label>
             <input
               class="form-input"
-              v-model="registerFormJuridical.companyType"
-              type="text"
-              placeholder="ООО/ИП"
-              autocomplete="organization"
-              :class="inputClass(companyTypeValid, 'companyType')"
-              :aria-invalid="t.companyType && !companyTypeValid"
-              @blur="touch('companyType')"
+              v-model="form.confirmPassword"
+              type="password"
+              placeholder="Повторите пароль"
+              :class="inputClass(passwordsMatch, 'confirmPassword')"
+              @blur="touch('confirmPassword')"
             />
-            <p v-if="t.companyType && !companyTypeValid" class="field-error">
-              Укажите «ООО» или «ИП»
+            <p v-if="t.confirmPassword" class="confirm-hint" :class="passwordsMatch ? 'hint-ok' : 'hint-err'">
+              {{ passwordsMatch ? '✓ Пароли совпадают' : '✗ Пароли не совпадают' }}
             </p>
           </div>
 
-          <div class="form-field">
-            <label class="field-label"
-              ><span class="field-required">*</span
-              ><span class="field-header">Наименование</span></label
-            >
-            <input
-              class="form-input"
-              v-model="registerFormJuridical.companyName"
-              type="text"
-              placeholder="Наименование организации"
-              autocomplete="organization"
-              :class="inputClass(companyNameValid, 'companyName')"
-              :aria-invalid="t.companyName && !companyNameValid"
-              @blur="touch('companyName')"
-            />
-            <p v-if="t.companyName && !companyNameValid" class="field-error">
-              Укажите наименование
-            </p>
-          </div>
+          <p v-if="serverError" class="server-error">{{ serverError }}</p>
 
-          <div class="form-field">
-            <label class="field-label"
-              ><span class="field-required">*</span><span class="field-header">ИНН</span></label
-            >
-            <input
-              class="form-input"
-              v-model="registerFormJuridical.inn"
-              type="text"
-              inputmode="numeric"
-              maxlength="12"
-              placeholder="ИНН"
-              autocomplete="off"
-              :class="inputClass(innValid, 'inn')"
-              :aria-invalid="t.inn && !innValid"
-              @blur="touch('inn')"
-            />
-            <p v-if="t.inn && !innValid" class="field-error">ИНН: {{ isIP ? '12' : '10' }} цифр</p>
-          </div>
-
-          <div class="form-field">
-            <label class="field-label"
-              ><span class="field-required">*</span
-              ><span class="field-header">ФИО Юр. лица</span></label
-            >
-            <input
-              class="form-input"
-              v-model="registerFormJuridical.legalFullName"
-              type="text"
-              placeholder="ФИО Юридического лица"
-              autocomplete="name"
-              :class="inputClass(legalFullNameValid, 'legalFullName')"
-              :aria-invalid="t.legalFullName && !legalFullNameValid"
-              @blur="touch('legalFullName')"
-            />
-            <p v-if="t.legalFullName && !legalFullNameValid" class="field-error">Укажите ФИО</p>
-          </div>
-
-          <div class="form-field">
-            <label class="field-label"
-              ><span class="field-required">*</span
-              ><span class="field-header">КПП (для ООО)</span></label
-            >
-            <input
-              class="form-input"
-              v-model="registerFormJuridical.kpp"
-              type="text"
-              inputmode="numeric"
-              maxlength="9"
-              placeholder="КПП"
-              autocomplete="off"
-              :class="inputClass(kppValidOrNotRequired, 'kpp')"
-              :aria-invalid="t.kpp && !kppValidOrNotRequired"
-              @blur="touch('kpp')"
-            />
-            <p v-if="t.kpp && !kppValidOrNotRequired" class="field-error">КПП: 9 цифр (для ООО)</p>
-          </div>
-
-          <div class="form-field">
-            <label class="field-label"
-              ><span class="field-required">*</span><span class="field-header">ОГРН</span></label
-            >
-            <input
-              class="form-input"
-              v-model="registerFormJuridical.ogrn"
-              type="text"
-              inputmode="numeric"
-              maxlength="15"
-              placeholder="ОГРН"
-              autocomplete="off"
-              :class="inputClass(ogrnValid, 'ogrn')"
-              :aria-invalid="t.ogrn && !ogrnValid"
-              @blur="touch('ogrn')"
-            />
-            <p v-if="t.ogrn && !ogrnValid" class="field-error">
-              ОГРН: {{ isIP ? '15' : '13' }} цифр
-            </p>
-          </div>
-
-          <div class="form-field">
-            <label class="field-label"><span class="field-header">Почта (опционально)</span></label>
-            <input
-              class="form-input"
-              v-model="registerFormJuridical.email"
-              type="email"
-              placeholder="acc@company.ru"
-              autocomplete="email"
-              :class="inputClass(companyEmailValid || !registerFormJuridical.email, 'companyEmail')"
-              :aria-invalid="t.companyEmail && registerFormJuridical.email && !companyEmailValid"
-              @blur="touch('companyEmail')"
-            />
-            <p
-              v-if="t.companyEmail && registerFormJuridical.email && !companyEmailValid"
-              class="field-error"
-            >
-              Некорректный e-mail
-            </p>
-          </div>
-
-          <div class="form-field">
-            <label class="field-label"
-              ><span class="field-header">Телефон (опционально)</span></label
-            >
-            <input
-              class="form-input"
-              v-model="registerFormJuridical.phone"
-              type="tel"
-              inputmode="tel"
-              placeholder="+7(495)123-45-67"
-              :class="inputClass(companyPhoneValid || !registerFormJuridical.phone, 'companyPhone')"
-              :aria-invalid="t.companyPhone && registerFormJuridical.phone && !companyPhoneValid"
-              @blur="touch('companyPhone')"
-            />
-            <p
-              v-if="t.companyPhone && registerFormJuridical.phone && !companyPhoneValid"
-              class="field-error"
-            >
-              Формат RU: +7… / 8… / 7…
-            </p>
-          </div>
-
-          <div class="form-field">
-            <label class="field-label"
-              ><span class="field-required">*</span><span class="field-header">БИК</span></label
-            >
-            <input
-              class="form-input"
-              v-model="registerFormJuridical.bik"
-              type="text"
-              inputmode="numeric"
-              maxlength="9"
-              placeholder="БИК"
-              autocomplete="off"
-              :class="inputClass(bikValid, 'bik')"
-              :aria-invalid="t.bik && !bikValid"
-              @blur="touch('bik')"
-            />
-            <p v-if="t.bik && !bikValid" class="field-error">БИК: 9 цифр</p>
-          </div>
-
-          <div class="form-field">
-            <label class="field-label"
-              ><span class="field-required">*</span
-              ><span class="field-header">Расчетный счёт</span></label
-            >
-            <input
-              class="form-input"
-              v-model="registerFormJuridical.settlementAccount"
-              type="text"
-              inputmode="numeric"
-              maxlength="20"
-              placeholder="Расчетный счёт"
-              autocomplete="off"
-              :class="inputClass(rsValid, 'rs')"
-              :aria-invalid="t.rs && !rsValid"
-              @blur="touch('rs')"
-            />
-            <p v-if="t.rs && !rsValid" class="field-error">Р/с: 20 цифр</p>
-          </div>
-
-          <div class="form-field">
-            <label class="field-label"
-              ><span class="field-required">*</span
-              ><span class="field-header">Кор. счёт</span></label
-            >
-            <input
-              class="form-input"
-              v-model="registerFormJuridical.correspondentAccount"
-              type="text"
-              inputmode="numeric"
-              maxlength="20"
-              placeholder="Кор.счёт"
-              autocomplete="off"
-              :class="inputClass(ksValid, 'ks')"
-              :aria-invalid="t.ks && !ksValid"
-              @blur="touch('ks')"
-            />
-            <p v-if="t.ks && !ksValid" class="field-error">К/с: 20 цифр</p>
-          </div>
-
-          <div class="form-field">
-            <label class="field-label"
-              ><span class="field-required">*</span
-              ><span class="field-header">Фактический адрес</span></label
-            >
-            <input
-              class="form-input"
-              v-model="registerFormJuridical.actualAddress"
-              type="text"
-              placeholder="Фактический адрес"
-              autocomplete="street-address"
-              :class="inputClass(actualAddrValid, 'actualAddress')"
-              :aria-invalid="t.actualAddress && !actualAddrValid"
-              @blur="touch('actualAddress')"
-            />
-            <p v-if="t.actualAddress && !actualAddrValid" class="field-error">Укажите адрес</p>
-          </div>
-
-          <div class="form-section-title">Юридический адрес</div>
-
-          <div class="form-field">
-            <label class="field-label"
-              ><span class="field-required">*</span><span class="field-header">Индекс</span></label
-            >
-            <input
-              class="form-input"
-              v-model="registerFormJuridical.legalIndex"
-              type="text"
-              inputmode="numeric"
-              maxlength="6"
-              placeholder="Индекс"
-              autocomplete="postal-code"
-              :class="inputClass(legalIndexValid, 'legalIndex')"
-              :aria-invalid="t.legalIndex && !legalIndexValid"
-              @blur="touch('legalIndex')"
-            />
-            <p v-if="t.legalIndex && !legalIndexValid" class="field-error">Индекс: 6 цифр</p>
-          </div>
-
-          <div class="form-field">
-            <label class="field-label"
-              ><span class="field-required">*</span><span class="field-header">Город</span></label
-            >
-            <input
-              class="form-input"
-              v-model="registerFormJuridical.legalCity"
-              type="text"
-              placeholder="Город"
-              autocomplete="address-level2"
-              :class="inputClass(legalCityValid, 'legalCity')"
-              :aria-invalid="t.legalCity && !legalCityValid"
-              @blur="touch('legalCity')"
-            />
-            <p v-if="t.legalCity && !legalCityValid" class="field-error">Укажите город</p>
-          </div>
-
-          <div class="form-field">
-            <label class="field-label"
-              ><span class="field-required">*</span><span class="field-header">Адрес</span></label
-            >
-            <input
-              class="form-input"
-              v-model="registerFormJuridical.legalAddress"
-              type="text"
-              placeholder="Адрес"
-              autocomplete="street-address"
-              :class="inputClass(legalAddrValid, 'legalAddress')"
-              :aria-invalid="t.legalAddress && !legalAddrValid"
-              @blur="touch('legalAddress')"
-            />
-            <p v-if="t.legalAddress && !legalAddrValid" class="field-error">Укажите адрес</p>
-          </div>
-
-          <p v-if="serverError && currentStep === 2" class="server-error" role="alert">
-            {{ serverError }}
-          </p>
-
-          <button
-            type="submit"
-            class="btn btn-primary registration-btn-main"
-            :disabled="loading || !jurFormValid"
-          >
-            {{ loading ? 'Отправка…' : 'Завершить регистрацию' }}
+          <button type="submit" class="btn btn-primary" :disabled="loading || !finalFormValid">
+            {{ loading ? 'Регистрация...' : 'Завершить регистрацию' }}
           </button>
         </form>
       </div>
@@ -489,7 +194,7 @@
 </template>
 
 <script setup lang="ts">
-import { computed, ref } from 'vue'
+import { computed, nextTick, ref } from 'vue'
 import { mdiArrowLeft } from '@mdi/js'
 import apiService, { type RegisterPayload } from '@/services/api'
 import { useRouter } from 'vue-router'
@@ -497,263 +202,223 @@ import { useRouter } from 'vue-router'
 const router = useRouter()
 
 /** Шаги */
-const currentStep = ref<1 | 2>(1)
-function goToStep(step: 1 | 2) {
-  currentStep.value = step
+const currentStep = ref<1 | 2 | 3>(1)
+
+function goBack() {
+  if (currentStep.value > 1) {
+    currentStep.value = (currentStep.value - 1) as 1 | 2 | 3
+    serverError.value = null
+  }
 }
 
 /** Состояния */
 const loading = ref(false)
 const serverError = ref<string | null>(null)
 
-/** touched-стейт */
-type TKey =
-  | 'name'
-  | 'surname'
-  | 'email'
-  | 'userPhone'
-  | 'password'
-  | 'confirm'
-  | 'companyType'
-  | 'companyName'
-  | 'inn'
-  | 'legalFullName'
-  | 'kpp'
-  | 'ogrn'
-  | 'companyEmail'
-  | 'companyPhone'
-  | 'bik'
-  | 'rs'
-  | 'ks'
-  | 'actualAddress'
-  | 'legalIndex'
-  | 'legalCity'
-  | 'legalAddress'
-const t = ref<Record<TKey, boolean>>({
-  name: false,
-  surname: false,
-  email: false,
-  userPhone: false,
-  password: false,
-  confirm: false,
-  companyType: false,
-  companyName: false,
-  inn: false,
-  legalFullName: false,
-  kpp: false,
-  ogrn: false,
-  companyEmail: false,
-  companyPhone: false,
-  bik: false,
-  rs: false,
-  ks: false,
-  actualAddress: false,
-  legalIndex: false,
-  legalCity: false,
-  legalAddress: false,
-})
-function touch(key: TKey) {
-  t.value[key] = true
-}
-function inputClass(valid: boolean, key: TKey) {
-  return { 'is-invalid': t.value[key] && !valid, 'is-valid': t.value[key] && valid }
-}
-
-/** Формы */
-const registerFormIndividual = ref({
-  name: '',
-  surname: '',
+/** Форма данных */
+const form = ref({
+  firstName: '',
+  lastName: '',
   email: '',
   phone: '',
   password: '',
   confirmPassword: '',
 })
-const registerFormJuridical = ref({
-  companyType: '',
-  companyName: '',
-  inn: '',
-  legalFullName: '',
-  kpp: '',
-  ogrn: '',
-  email: '',
-  phone: '',
-  bik: '',
-  settlementAccount: '',
-  correspondentAccount: '',
-  actualAddress: '',
-  legalIndex: '',
-  legalCity: '',
-  legalAddress: '',
+
+/** touched-стейт */
+type TKey = 'firstName' | 'lastName' | 'email' | 'phone' | 'password' | 'confirmPassword'
+const t = ref<Record<TKey, boolean>>({
+  firstName: false,
+  lastName: false,
+  email: false,
+  phone: false,
+  password: false,
+  confirmPassword: false,
 })
+
+function touch(key: TKey) {
+  t.value[key] = true
+}
+
+function inputClass(valid: boolean, key: TKey) {
+  return { 'is-invalid': t.value[key] && !valid, 'is-valid': t.value[key] && valid }
+}
 
 /** Валидаторы */
 const onlyDigits = (s: string) => (s || '').replace(/\D/g, '')
 const EMAIL_RE = /^[^\s@]+@[^\s@]+\.[^\s@]+$/
 
-const nameValid = computed(() => registerFormIndividual.value.name.trim().length > 0)
-const surnameValid = computed(() => registerFormIndividual.value.surname.trim().length > 0)
-const emailValid = computed(
-  () =>
-    !registerFormIndividual.value.email || EMAIL_RE.test(registerFormIndividual.value.email.trim()),
-)
-const userPhoneValid = computed(() => {
-  const d = onlyDigits(registerFormIndividual.value.phone)
+const nameValid = computed(() => form.value.firstName.trim().length > 0)
+const surnameValid = computed(() => form.value.lastName.trim().length > 0)
+const emailValidOrEmpty = computed(() => !form.value.email || EMAIL_RE.test(form.value.email.trim()))
+const phoneValid = computed(() => {
+  const d = onlyDigits(form.value.phone)
   return d.length === 11 && (d.startsWith('7') || d.startsWith('8'))
 })
 
-const pwd = computed(() => registerFormIndividual.value.password || '')
+const pwd = computed(() => form.value.password || '')
 const hasMinLen = computed(() => pwd.value.length >= 8)
 const hasDigit = computed(() => /\d/.test(pwd.value))
 const hasUpper = computed(() => /[A-ZА-ЯЁ]/.test(pwd.value))
 const hasLower = computed(() => /[a-zа-яё]/.test(pwd.value))
 const hasSpecial = computed(() => /[^0-9A-Za-zА-Яа-яЁё_\s]/.test(pwd.value))
-const passwordsMatch = computed(
-  () =>
-    registerFormIndividual.value.confirmPassword !== '' &&
-    registerFormIndividual.value.password === registerFormIndividual.value.confirmPassword,
-)
-const allPwdRulesOk = computed(
-  () => hasMinLen.value && hasDigit.value && hasUpper.value && hasLower.value && hasSpecial.value,
+const passwordsMatch = computed(() => form.value.password && form.value.password === form.value.confirmPassword)
+const allPwdRulesOk = computed(() => 
+  hasMinLen.value && hasDigit.value && hasUpper.value && hasLower.value && hasSpecial.value
 )
 
-const mainFormValid = computed(
-  () =>
-    nameValid.value &&
-    surnameValid.value &&
-    emailValid.value &&
-    userPhoneValid.value &&
-    allPwdRulesOk.value &&
-    passwordsMatch.value,
-)
+const step1Valid = computed(() => nameValid.value && surnameValid.value && emailValidOrEmpty.value && phoneValid.value)
+const finalFormValid = computed(() => allPwdRulesOk.value && passwordsMatch.value)
 
-const companyTypeNormalized = computed(() =>
-  registerFormJuridical.value.companyType.trim().toUpperCase(),
-)
-const isIP = computed(() => companyTypeNormalized.value === 'ИП')
-const companyTypeValid = computed(() => ['ООО', 'ИП'].includes(companyTypeNormalized.value))
-const companyNameValid = computed(() => registerFormJuridical.value.companyName.trim().length > 0)
-const innValid = computed(() => {
-  const d = onlyDigits(registerFormJuridical.value.inn)
-  return isIP.value ? d.length === 12 : d.length === 10
-})
-const legalFullNameValid = computed(
-  () => registerFormJuridical.value.legalFullName.trim().length > 0,
-)
-const kppValidOrNotRequired = computed(() =>
-  isIP.value ? true : onlyDigits(registerFormJuridical.value.kpp).length === 9,
-)
-const ogrnValid = computed(() => {
-  const d = onlyDigits(registerFormJuridical.value.ogrn)
-  return isIP.value ? d.length === 15 : d.length === 13
-})
-const companyEmailValid = computed(
-  () =>
-    !registerFormJuridical.value.email || EMAIL_RE.test(registerFormJuridical.value.email.trim()),
-)
-const companyPhoneValid = computed(() => {
-  if (!registerFormJuridical.value.phone) return true
-  const d = onlyDigits(registerFormJuridical.value.phone)
-  return d.length === 11 && (d.startsWith('7') || d.startsWith('8'))
-})
-const bikValid = computed(() => onlyDigits(registerFormJuridical.value.bik).length === 9)
-const rsValid = computed(
-  () => onlyDigits(registerFormJuridical.value.settlementAccount).length === 20,
-)
-const ksValid = computed(
-  () => onlyDigits(registerFormJuridical.value.correspondentAccount).length === 20,
-)
-const actualAddrValid = computed(() => registerFormJuridical.value.actualAddress.trim().length > 0)
-const legalIndexValid = computed(
-  () => onlyDigits(registerFormJuridical.value.legalIndex).length === 6,
-)
-const legalCityValid = computed(() => registerFormJuridical.value.legalCity.trim().length > 0)
-const legalAddrValid = computed(() => registerFormJuridical.value.legalAddress.trim().length > 0)
-
-const jurFormValid = computed(
-  () =>
-    companyTypeValid.value &&
-    companyNameValid.value &&
-    innValid.value &&
-    legalFullNameValid.value &&
-    kppValidOrNotRequired.value &&
-    ogrnValid.value &&
-    companyEmailValid.value &&
-    companyPhoneValid.value &&
-    bikValid.value &&
-    rsValid.value &&
-    ksValid.value &&
-    actualAddrValid.value &&
-    legalIndexValid.value &&
-    legalCityValid.value &&
-    legalAddrValid.value,
-)
-
-/** Навигация */
-function toJuridicalStep() {
+/** Шаг 1: Отправка кода */
+async function sendCode() {
   serverError.value = null
-  Object.assign(t.value, {
-    name: true,
-    surname: true,
-    email: true,
-    userPhone: true,
-    password: true,
-    confirm: true,
-  })
-  if (mainFormValid.value) goToStep(2)
-}
+  touch('firstName')
+  touch('lastName')
+  touch('email')
+  touch('phone')
 
-async function finishRegistration() {
-  serverError.value = null
-  Object.assign(t.value, {
-    companyType: true,
-    companyName: true,
-    inn: true,
-    legalFullName: true,
-    kpp: true,
-    ogrn: true,
-    companyEmail: true,
-    companyPhone: true,
-    bik: true,
-    rs: true,
-    ks: true,
-    actualAddress: true,
-    legalIndex: true,
-    legalCity: true,
-    legalAddress: true,
-  })
-  if (!mainFormValid.value || !jurFormValid.value) return
-
-  const u = registerFormIndividual.value
-  const c = registerFormJuridical.value
-
-  const payload: RegisterPayload = {
-    user: {
-      firstName: u.name.trim(),
-      lastName: u.surname.trim(),
-      email: u.email?.trim() || undefined,
-      phone: u.phone.trim(),
-      password: u.password,
-    },
-    company: {
-      companyType: companyTypeNormalized.value,
-      companyName: c.companyName.trim(),
-      inn: c.inn.trim(),
-      kpp: isIP.value ? undefined : c.kpp?.trim() || undefined,
-      ogrn: c.ogrn.trim(),
-      email: c.email?.trim() || undefined,
-      phone: c.phone?.trim() || undefined,
-      bik: c.bik.trim(),
-      settlementAccount: c.settlementAccount.trim(),
-      correspondentAccount: c.correspondentAccount.trim(),
-      actualAddress: c.actualAddress.trim(),
-      legalIndex: c.legalIndex.trim(),
-      legalCity: c.legalCity.trim(),
-      legalAddress: c.legalAddress.trim(),
-    },
-  }
+  if (!step1Valid.value) return
 
   try {
     loading.value = true
+    const result = await apiService.sendRegistrationCode(form.value.phone.trim())
+    
+    // В dev режиме покажем код в консоли
+    if (result.devCode) {
+      console.log('DEV CODE:', result.devCode)
+    }
+    
+    currentStep.value = 2
+    startTimer()
+  } catch (err: any) {
+    const msg = err?.response?.data?.message
+    serverError.value = Array.isArray(msg) ? msg.join(', ') : msg || 'Не удалось отправить код'
+  } finally {
+    loading.value = false
+  }
+}
+
+/** Шаг 2: SMS код */
+const code = ref<string[]>(['', '', '', '', '', ''])
+const codeRefs = ref<HTMLInputElement[]>([])
+const isInvalid = ref(false)
+const codeStr = computed(() => code.value.join(''))
+const complete = computed(() => codeStr.value.length === 6)
+
+const maskedPhone = computed(() => {
+  const d = (form.value.phone || '').replace(/\D/g, '')
+  if (d.length < 11) return form.value.phone
+  return `+7(${d.slice(1, 4)})***-**-${d.slice(-2)}`
+})
+
+function focus(i: number) {
+  nextTick(() => codeRefs.value[i]?.focus())
+}
+
+function onDigitInput(i: number, e: Event) {
+  const el = e.target as HTMLInputElement
+  const v = el.value.replace(/\D/g, '').slice(0, 1)
+  code.value[i] = v
+  if (v && i < 5) focus(i + 1)
+  isInvalid.value = false
+}
+
+function onBackspace(i: number) {
+  if (code.value[i]) {
+    code.value[i] = ''
+  } else if (i > 0) {
+    code.value[i - 1] = ''
+    focus(i - 1)
+  }
+  isInvalid.value = false
+}
+
+function onPaste(e: ClipboardEvent) {
+  const digits = (e.clipboardData?.getData('text') || '').replace(/\D/g, '').slice(0, 6)
+  if (!digits) return
+  for (let i = 0; i < 6; i++) code.value[i] = digits[i] || ''
+  if (digits.length >= 6) focus(5)
+  isInvalid.value = false
+}
+
+/** Таймер и ресенд */
+const duration = 60
+const left = ref(duration)
+let ticker: any = null
+const canResend = computed(() => left.value <= 0)
+const timeLeft = computed(() => {
+  const s = Math.max(left.value, 0)
+  const mm = Math.floor(s / 60)
+  const ss = String(s % 60).padStart(2, '0')
+  return `${mm}:${ss}`
+})
+
+function startTimer() {
+  clearInterval(ticker)
+  left.value = duration
+  ticker = setInterval(() => {
+    left.value -= 1
+    if (left.value <= 0) clearInterval(ticker)
+  }, 1000)
+}
+
+async function resendCode() {
+  try {
+    loading.value = true
+    serverError.value = null
+    const result = await apiService.sendRegistrationCode(form.value.phone.trim())
+    if (result.devCode) {
+      console.log('DEV CODE:', result.devCode)
+    }
+    code.value = ['', '', '', '', '', '']
+    isInvalid.value = false
+    startTimer()
+  } catch (err: any) {
+    const msg = err?.response?.data?.message
+    serverError.value = Array.isArray(msg) ? msg.join(', ') : msg || 'Не удалось отправить код'
+  } finally {
+    loading.value = false
+  }
+}
+
+async function verifyCode() {
+  if (!complete.value) return
+  serverError.value = null
+  isInvalid.value = false
+
+  try {
+    loading.value = true
+    await apiService.verifyRegistrationCode(form.value.phone.trim(), codeStr.value)
+    currentStep.value = 3
+  } catch (err: any) {
+    isInvalid.value = true
+    const msg = err?.response?.data?.message
+    serverError.value = Array.isArray(msg) ? msg.join(', ') : msg || 'Неверный код'
+  } finally {
+    loading.value = false
+  }
+}
+
+/** Шаг 3: Завершение регистрации */
+async function finishRegistration() {
+  serverError.value = null
+  touch('password')
+  touch('confirmPassword')
+
+  if (!finalFormValid.value) return
+
+  try {
+    loading.value = true
+    
+    const payload: RegisterPayload = {
+      firstName: form.value.firstName.trim(),
+      lastName: form.value.lastName.trim(),
+      email: form.value.email.trim() || undefined,
+      phone: form.value.phone.trim(),
+      password: form.value.password,
+    }
+
     await apiService.register(payload)
     router.push('/')
   } catch (err: any) {
@@ -768,7 +433,7 @@ async function finishRegistration() {
 <style scoped>
 .register-page {
   min-height: calc(100dvh - var(--header-current) - var(--footer-current));
-  padding: 40px 0;
+  padding: 56px 0;
   display: flex;
   justify-content: center;
   align-items: center;
@@ -776,15 +441,14 @@ async function finishRegistration() {
 }
 
 .register-modal {
-  width: clamp(254px, calc(100% - 40vw), 653px);
+  width: clamp(360px, calc(100% - 20vw), 880px);
   background: #ffffff;
   border-radius: 32px;
   box-shadow:
-    0 20px 45px rgba(15, 43, 81, 0.08),
-    0 10px 18px rgba(15, 43, 81, 0.04);
+    0 22px 55px rgba(15, 43, 81, 0.1),
+    0 12px 22px rgba(15, 43, 81, 0.05);
   display: flex;
   justify-content: center;
-  margin: 0;
 }
 
 .register-container {
@@ -792,33 +456,30 @@ async function finishRegistration() {
   box-sizing: border-box;
   display: flex;
   flex-direction: column;
-}
-
-.register-controls {
-  display: flex;
-  justify-content: flex-start;
+  padding: 40px 56px 52px;
+  position: relative;
 }
 
 .back-button {
-  width: 23px;
-  height: 23px;
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  font-size: 18px;
+  position: absolute;
+  left: 24px;
+  top: 24px;
+  width: 36px;
+  height: 36px;
+  border: none;
+  background: transparent;
   cursor: pointer;
-  margin-top: 32px;
-  margin-left: 15px;
+  padding: 0;
 }
 
 .back-button svg {
-  width: 23px;
-  height: 23px;
-  fill: #9c9c9c;
+  width: 22px;
+  height: 22px;
+  fill: #9ca3af;
 }
 
-.back-button svg:hover {
-  fill: black;
+.back-button:hover svg {
+  fill: #6b7280;
 }
 
 .register-header {
@@ -826,11 +487,12 @@ async function finishRegistration() {
   display: flex;
   flex-direction: column;
   gap: 8px;
-  margin-top: clamp(0px, 3.33vw, 36px);
+  margin-top: 0;
+  margin-bottom: 8px;
 }
 
 .register-title {
-  font-size: 32px;
+  font-size: 34px;
   font-weight: 700;
   color: #171717;
   margin: 0;
@@ -841,28 +503,24 @@ async function finishRegistration() {
   color: #6b7280;
   margin: 0;
   line-height: 1.4;
-  margin-bottom: 10px;
 }
 
 .register-form {
   display: flex;
   flex-direction: column;
   align-items: stretch;
-  gap: 18px;
+  gap: 20px;
   width: 100%;
-  max-width: 377px;
-  min-width: 190px;
+  max-width: 520px;
   margin: 0 auto;
-  padding-bottom: 76px;
+  padding: 6px 0 72px;
 }
 
-/* ---- поля и подписи ---- */
 .form-field {
   display: flex;
   flex-direction: column;
 }
 
-/* ВЫРАВНИВАНИЕ ЛЕЙБЛА: убрали отрицательный отступ */
 .field-label {
   display: inline-flex;
   align-items: center;
@@ -871,26 +529,17 @@ async function finishRegistration() {
   color: #111827;
   font-weight: 600;
   margin: 0 0 6px;
-  /* вместо -6px */
   line-height: 1;
 }
 
 .field-required {
   color: #ef4444;
-  font-size: 14px;
-  line-height: 1;
-  transform: translateY(-0.5px);
-}
-
-.field-header {
-  font-weight: 600;
-  font-size: 13px;
-  line-height: 1;
+  font-weight: 700;
 }
 
 .form-input {
   width: 100%;
-  height: 48px;
+  height: 52px;
   padding: 0 18px;
   border: 1px solid #e5e7eb;
   border-radius: 12px;
@@ -899,10 +548,7 @@ async function finishRegistration() {
   color: #111827;
   box-sizing: border-box;
   outline: none;
-  transition:
-    border-color 0.2s ease,
-    box-shadow 0.2s ease,
-    background 0.2s ease;
+  transition: border-color 0.2s ease, box-shadow 0.2s ease, background 0.2s ease;
 }
 
 .form-input:focus {
@@ -915,7 +561,6 @@ async function finishRegistration() {
   font-size: 16px;
 }
 
-/* Подсветка валидации */
 .is-invalid {
   border-color: #ef4444 !important;
   background: #fff7f7;
@@ -931,34 +576,34 @@ async function finishRegistration() {
   color: #ef4444;
 }
 
-/* Секции */
 .form-section-title {
-  font-size: 16px;
-  font-weight: 600;
-  color: #1f2937;
-  margin-top: 8px;
-  align-self: center;
-  margin-bottom: 20px;
+  font-size: 18px;
+  font-weight: 700;
+  color: #111827;
+  margin-bottom: 8px;
+  padding-top: 12px;
 }
 
-/* Кнопки */
 .btn {
   width: 100%;
-  height: 48px;
+  height: 52px;
   border: none;
-  border-radius: 12px;
   font-size: 15px;
-  font-weight: 600;
+  font-weight: 700;
   cursor: pointer;
-  transition:
-    transform 0.2s ease,
-    box-shadow 0.2s ease;
+  transition: transform 0.2s ease, box-shadow 0.2s ease;
   text-transform: uppercase;
+  border-radius: 12px;
 }
 
-.btn:hover {
+.btn:hover:not(:disabled) {
   transform: translateY(-1px);
   box-shadow: 0 10px 20px rgba(0, 0, 0, 0.08);
+}
+
+.btn:disabled {
+  opacity: 0.6;
+  cursor: not-allowed;
 }
 
 .btn-primary {
@@ -966,11 +611,7 @@ async function finishRegistration() {
   color: #ffffff;
 }
 
-.registration-btn-main {
-  margin-top: 30px;
-}
-
-.btn-primary:hover {
+.btn-primary:hover:not(:disabled) {
   background: #183323;
 }
 
@@ -989,129 +630,212 @@ async function finishRegistration() {
   text-decoration: underline;
 }
 
-.password__container {
-  margin-top: 10px;
-}
-
-.password-header {
-  font-size: 14px;
-  margin: 0 0 8px;
-  color: #000;
-}
-
-/* Правила пароля */
 .password-rules {
   display: grid;
   grid-template-columns: 1fr 1fr;
-  column-gap: 24px;
-  row-gap: 12px;
+  gap: 12px;
+  margin-top: -8px;
 }
 
 .rules-col {
   list-style: none;
-  margin: 0;
   padding: 0;
-  display: grid;
-  row-gap: 12px;
+  margin: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
 }
 
 .rules-col li {
+  font-size: 12px;
+  color: #6b7280;
   display: flex;
   align-items: center;
   gap: 8px;
-  font-size: 12px;
-  line-height: 1.2;
-  color: #6b7280;
-  transition: color 0.2s ease;
 }
 
 .rules-col li i {
-  flex: 0 0 16px;
   width: 16px;
   height: 16px;
   border-radius: 50%;
-  border: 2px solid #9ca3af;
+  border: 1.5px solid #d1d5db;
   position: relative;
-  display: inline-block;
+  flex-shrink: 0;
 }
 
 .rules-col li.ok {
-  color: #2e8b57;
+  color: #059669;
 }
 
 .rules-col li.ok i {
-  border-color: #2e8b57;
+  border-color: #059669;
+  background: #059669;
 }
 
 .rules-col li.ok i::before,
 .rules-col li.ok i::after {
   content: '';
   position: absolute;
-  background: #2e8b57;
-  border-radius: 1px;
+  background: white;
+  border-radius: 2px;
 }
 
 .rules-col li.ok i::before {
-  left: 4px;
-  top: 7px;
   width: 2px;
-  height: 5px;
+  height: 6px;
+  left: 5px;
+  top: 7px;
   transform: rotate(45deg);
 }
 
 .rules-col li.ok i::after {
-  left: 7px;
-  top: 3px;
   width: 2px;
-  height: 9px;
+  height: 10px;
+  left: 8px;
+  top: 2px;
   transform: rotate(-45deg);
 }
 
 .confirm-hint {
-  font-size: 12px;
   margin-top: 6px;
+  font-size: 12px;
 }
 
 .hint-ok {
-  color: #2e8b57;
+  color: #059669;
 }
 
 .hint-err {
   color: #ef4444;
 }
 
-/* Ошибка сервера */
 .server-error {
-  margin-top: 10px;
   color: #ef4444;
+  font-size: 13px;
+  text-align: center;
+}
+
+/* Шаг 2: SMS код */
+.code-form {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 18px;
+  max-width: 600px;
+  margin: 24px auto 0;
+  padding-bottom: 48px;
+}
+
+.code-label {
+  font-size: 14px;
+  color: #111827;
+  font-weight: 600;
+  text-align: center;
+  line-height: 1.6;
+}
+
+.masked-phone {
+  color: #6b7280;
+  font-weight: 400;
   font-size: 13px;
 }
 
-/* адаптив */
-@media (max-width: 420px) {
-  .password-rules {
-    grid-template-columns: 1fr;
-    row-gap: 12px;
-  }
+.code-inputs {
+  display: grid;
+  grid-template-columns: repeat(6, 64px);
+  justify-content: center;
+  gap: 12px;
+}
+
+.code-box {
+  width: 64px;
+  height: 64px;
+  text-align: center;
+  font-size: 24px;
+  font-weight: 700;
+  border: 1px solid #e5e7eb;
+  border-radius: 10px;
+  outline: none;
+  background: #f3f4f6;
+  transition: border-color 0.2s, box-shadow 0.2s, background 0.2s;
+}
+
+.code-box:focus {
+  border-color: #2563eb;
+  box-shadow: 0 0 0 3px rgba(37, 99, 235, 0.08);
+  background: #fff;
+}
+
+.code-inputs.invalid .code-box {
+  border-color: #ef4444 !important;
+  background: #fff7f7;
+}
+
+.hint {
+  margin-top: 4px;
+  font-size: 12px;
+  color: #6b7280;
+  margin-bottom: 0;
+}
+
+.timer {
+  font-size: 14px;
+  color: #6b7280;
+  margin: 0;
+}
+
+.timer.active {
+  font-weight: 600;
+  color: #111827;
+}
+
+.resend {
+  margin-top: -4px;
+  background: none;
+  border: none;
+  color: #2563eb;
+  cursor: pointer;
+  font-size: 14px;
+  padding: 0;
+}
+
+.resend:hover:not(:disabled) {
+  text-decoration: underline;
+}
+
+.resend:disabled {
+  opacity: 0.5;
+  cursor: not-allowed;
+}
+
+.verify-btn {
+  max-width: 420px;
+  margin-top: 6px;
 }
 
 @media (max-width: 768px) {
   .register-container {
     padding: 32px 24px 40px;
-    gap: 24px;
   }
 
   .register-title {
-    font-size: 26px;
+    font-size: 28px;
   }
 
-  .register-subtitle {
-    font-size: 14px;
+  .register-form {
+    max-width: 100%;
+    padding-bottom: 48px;
   }
 
-  .back-button {
-    width: 36px;
-    height: 36px;
+  .code-inputs {
+    grid-template-columns: repeat(6, 48px);
+    gap: 8px;
+  }
+
+  .code-box {
+    width: 48px;
+    height: 48px;
+    font-size: 20px;
   }
 }
 </style>

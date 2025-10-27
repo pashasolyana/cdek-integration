@@ -5,6 +5,7 @@ import noImage from '../assets/images/no-image.jpg'
 const props = defineProps<{
   PVZName: string
   address: string
+  code?: string
 }>()
 
 let PVZImage = ''
@@ -23,7 +24,7 @@ switch (props.PVZName) {
   <div class="card-container">
     <div class="info-container">
       <div class="info">
-        <h3>{{ PVZName }}</h3>
+        <h3>{{ PVZName }} <span v-if="code" style="color: #666; font-size: 14px; font-weight: normal;">#{{ code }}</span></h3>
         <p>{{ address }}</p>
       </div>
       <img :src="PVZImage" :alt="noImage" class="image" />

@@ -20,6 +20,8 @@ import {
   ForgotVerifyDto,
   LoginDto,
   RegisterDto,
+  RegisterSendCodeDto,
+  RegisterVerifyCodeDto,
 } from './dto/auth.dto';
 import { JwtAuthGuard } from './guards/jwt-auth.guard';
 import { CurrentUser } from './decorators/current-user.decorator';
@@ -31,6 +33,31 @@ export class AuthController {
     private readonly authService: AuthService,
     private readonly tokenService: TokenService,
   ) {}
+
+  @Public()
+  @Throttle({ default: { limit: 3, ttl: 300000 } }) // 3 попытки в 5 минут
+  @Post('register/send-code')
+  @HttpCode(HttpStatus.OK)
+  async sendRegistrationCode(@Body() dto: RegisterSendCodeDto) {
+    const devCode = await this.authService.sendRegistrationCode(dto);
+    return {
+      success: true,
+      message: 'Код подтверждения отправлен',
+      ...(process.env.NODE_ENV === 'development' && devCode ? { devCode } : {}),
+    };
+  }
+
+  @Public()
+  @Throttle({ default: { limit: 10, ttl: 600000 } }) // 10 попыток в 10 минут
+  @Post('register/verify-code')
+  @HttpCode(HttpStatus.OK)
+  async verifyRegistrationCode(@Body() dto: RegisterVerifyCodeDto) {
+    await this.authService.verifyRegistrationCode(dto);
+    return {
+      success: true,
+      message: 'Код подтвержден',
+    };
+  }
 
   @Public()
   @Throttle({ default: { limit: 3, ttl: 300000 } }) // 3 попытки в 5 минут

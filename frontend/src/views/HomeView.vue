@@ -4,9 +4,17 @@ import {
   mdiFileOutline,
   mdiPrinterOutline,
   mdiTruckDeliveryOutline,
+  mdiAccountCircleOutline,
 } from '@mdi/js'
 
-const heroActions = [
+type HeroAction = {
+  label: string
+  icon: string
+  to: { name: string }
+  variant?: 'primary'
+}
+
+const heroActions: HeroAction[] = [
   {
     label: 'Создать заказ',
     icon: mdiPlusBoxMultipleOutline,
@@ -21,6 +29,11 @@ const heroActions = [
     label: 'Отследить посылку',
     icon: mdiTruckDeliveryOutline,
     to: { name: 'track' },
+  },
+  {
+    label: 'Личный кабинет',
+    icon: mdiAccountCircleOutline,
+    to: { name: 'profile' },
   },
 ]
 </script>

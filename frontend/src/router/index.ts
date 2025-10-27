@@ -9,6 +9,7 @@ import Track from '@/views/Track.vue'
 import CreateOrderView from '@/views/CreateOrderView.vue'
 import HomeView from '@/views/HomeView.vue'
 import OrdersView from '@/views/OrdersView.vue'
+import ProfileView from '@/views/ProfileView.vue'
 
 type RouteMetaFlags = {
   requiresAuth?: boolean
@@ -60,6 +61,12 @@ const router = createRouter({
       meta: { guest: true, hideFooter: true },
     },
     {
+      path: '/profile',
+      name: 'profile',
+      component: ProfileView,
+      meta: { requiresAuth: true },
+    },
+    {
       path: '/404',
       name: 'not-found',
       component: NotFoundView,
@@ -72,7 +79,7 @@ const router = createRouter({
       path: '/order/create',
       name: 'order-create',
       component: CreateOrderView,
-      meta: { guest: true },
+        meta: { requiresAuth: true },
     },
   ],
 })
