@@ -49,7 +49,7 @@ const selectOption = (option: { value: string; label: string }) => {
     @click="toggle"
     :style="{ width: width, minHeight: height, border: isOpen ? '1px solid #344E41' : 'none' }"
   >
-    <div class="dropdown-selected">
+    <div class="dropdown-selected" :style="{ height: height }">
       <span :class="{ placeholder: !selectedValue }">
         {{ selectedValueLabel || placeholder }}
       </span>
