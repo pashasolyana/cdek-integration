@@ -31,6 +31,8 @@ onBeforeUnmount(() => {
   window.removeEventListener('keydown', handleEsc)
 })
 
+const payer = ref<string | null>(null)
+
 // Основные данные формы
 const tradingCompany = ref<string | null>(null)
 const deliveryMethod = ref<string | null>(null)
@@ -45,13 +47,6 @@ watch(tradingCompany, (newVal) => {
 let isDeliveryMethod = ref(false)
 watch(deliveryMethod, (newVal) => {
   isDeliveryMethod.value = newVal !== null
-})
-
-// -----------
-
-let isCourier = ref(false)
-watch(deliveryMethod, (newVal) => {
-  isCourier.value = newVal === 'Курьером'
 })
 
 // Адрес отправления
@@ -187,10 +182,14 @@ const tradingCompanyOptions = [
   { value: 'company3', label: 'ООО "Доставка+"' },
 ]
 
+const payerOptions = [
+  { value: 'sender', label: 'Отправитель' },
+  { value: 'receiver', label: 'Получатель ' },
+]
+
 const deliveryMethodOptions = [
-  { value: 'door', label: 'От двери до двери' },
-  { value: 'warehouse', label: 'Со склада до склада' },
-  { value: 'pvz', label: 'До пункта выдачи' },
+  { value: 'door', label: 'До двери' },
+  { value: 'pvz', label: 'До ПВЗ' },
 ]
 
 const packageTypeOptions = [
@@ -1076,175 +1075,171 @@ const resetForm = () => {
     <h1>Оформить заказ</h1>
     <section class="dropdawn-section">
       <Dropdown
-        v-model="tradingCompany"
-        :options="tradingCompanyOptions"
-        placeholder="Торговая компания"
-        width="625px"
-        height="54px"
-      />
-      <Dropdown
         v-model="deliveryMethod"
         :options="deliveryMethodOptions"
         placeholder="Способ доставки"
-        width="625px"
+        width="82dvw"
         height="54px"
-        :disabled="!isTK"
       />
     </section>
 
     <!-- Адрес ОТКУДА -->
     <section class="address-section">
-      <section class="required-address-section">
-        <div class="required-address-inputs">
-          <h4 class="section-title">Откуда</h4>
-          <Autocomplete
-            v-model="fromCity"
-            :suggestions="fromCitySuggestions"
-            :loading="fromCityLoading"
-            placeholder="Город отправления"
-            width="292px"
-            height="54px"
-            :error="formErrors.fromCity"
-            @select="handleFromCitySelect"
-          />
-          <Autocomplete
-            v-model="fromAddress"
-            :suggestions="fromAddressSuggestions"
-            :loading="fromAddressLoading"
-            placeholder="Адрес отправления"
-            width="292px"
-            height="54px"
-            @select="handleFromAddressSelect"
-          />
-        </div>
-        <div class="map">
-          <p @click="isMapModalOpen = true">Указать на карте</p>
-          <svg
-            width="19"
-            height="19"
-            viewBox="0 0 19 19"
-            fill="none"
-            xmlns="http://www.w3.org/2000/svg"
-          >
-            <path
-              d="M15.1438 8.22777C15.1438 11.842 11.1343 15.6061 9.78793 16.7686C9.6625 16.8629 9.50982 16.9139 9.35289 16.9139C9.19596 16.9139 9.04328 16.8629 8.91785 16.7686C7.57147 15.6061 3.56201 11.842 3.56201 8.22777C3.56201 6.69193 4.17212 5.219 5.25812 4.133C6.34412 3.047 7.81705 2.43689 9.35289 2.43689C10.8887 2.43689 12.3617 3.047 13.4477 4.133C14.5337 5.219 15.1438 6.69193 15.1438 8.22777Z"
-              stroke="#344E41"
-              stroke-linecap="round"
-              stroke-linejoin="round"
+      <h4 class="section-title">Откуда</h4>
+      <div class="common-address">
+        <section class="required-address-section">
+          <div class="required-address-inputs">
+            <Autocomplete
+              v-model="fromCity"
+              :suggestions="fromCitySuggestions"
+              :loading="fromCityLoading"
+              placeholder="Город отправления"
+              width="308px"
+              height="54px"
+              :error="formErrors.fromCity"
+              @select="handleFromCitySelect"
             />
-            <path
-              d="M9.35273 10.3993C10.5521 10.3993 11.5243 9.42706 11.5243 8.22773C11.5243 7.0284 10.5521 6.05615 9.35273 6.05615C8.1534 6.05615 7.18115 7.0284 7.18115 8.22773C7.18115 9.42706 8.1534 10.3993 9.35273 10.3993Z"
-              stroke="#344E41"
-              stroke-linecap="round"
-              stroke-linejoin="round"
+            <Autocomplete
+              v-model="fromAddress"
+              :suggestions="fromAddressSuggestions"
+              :loading="fromAddressLoading"
+              placeholder="Адрес отправления"
+              width="308px"
+              height="54px"
+              @select="handleFromAddressSelect"
             />
-          </svg>
-        </div>
-      </section>
+          </div>
+          <div class="map">
+            <p @click="isMapModalOpen = true">Указать на карте</p>
+            <svg
+              width="19"
+              height="19"
+              viewBox="0 0 19 19"
+              fill="none"
+              xmlns="http://www.w3.org/2000/svg"
+            >
+              <path
+                d="M15.1438 8.22777C15.1438 11.842 11.1343 15.6061 9.78793 16.7686C9.6625 16.8629 9.50982 16.9139 9.35289 16.9139C9.19596 16.9139 9.04328 16.8629 8.91785 16.7686C7.57147 15.6061 3.56201 11.842 3.56201 8.22777C3.56201 6.69193 4.17212 5.219 5.25812 4.133C6.34412 3.047 7.81705 2.43689 9.35289 2.43689C10.8887 2.43689 12.3617 3.047 13.4477 4.133C14.5337 5.219 15.1438 6.69193 15.1438 8.22777Z"
+                stroke="#344E41"
+                stroke-linecap="round"
+                stroke-linejoin="round"
+              />
+              <path
+                d="M9.35273 10.3993C10.5521 10.3993 11.5243 9.42706 11.5243 8.22773C11.5243 7.0284 10.5521 6.05615 9.35273 6.05615C8.1534 6.05615 7.18115 7.0284 7.18115 8.22773C7.18115 9.42706 8.1534 10.3993 9.35273 10.3993Z"
+                stroke="#344E41"
+                stroke-linecap="round"
+                stroke-linejoin="round"
+              />
+            </svg>
+          </div>
+        </section>
 
-      <div v-if="isMapModalOpen" class="modal-overlay" @click.self="isMapModalOpen = false">
-        <div class="modal-window">
-          <div class="ymap-container">
-            <YMap />
-          </div>
-          <div class="left-side-container">
-            <div class="close-btn-container">
-              <button class="close-btn" @click="isMapModalOpen = false">×</button>
+        <div v-if="isMapModalOpen" class="modal-overlay" @click.self="isMapModalOpen = false">
+          <div class="modal-window">
+            <div class="ymap-container">
+              <YMap />
             </div>
-            <div class="list">
-              <Input height="54px" width="100%" placeholder="Найти" />
-              <PVZCard PVZName="СДЭК" address="Улица Мира" />
+            <div class="left-side-container">
+              <div class="close-btn-container">
+                <button class="close-btn" @click="isMapModalOpen = false">×</button>
+              </div>
+              <div class="list">
+                <Input height="54px" width="100%" placeholder="Найти" />
+                <PVZCard PVZName="СДЭК" address="Улица Мира" />
+              </div>
             </div>
           </div>
         </div>
+
+        <section class="extra-address-section">
+          <Input
+            v-model="fromPostalCode"
+            height="54px"
+            width="278px"
+            placeholder="Индекс"
+            :error="formErrors.fromPostalCode"
+          />
+          <Input
+            v-model="shipmentPoint"
+            height="54px"
+            width="338px"
+            placeholder="Код ПВЗ отправки (если со склада)"
+          />
+        </section>
       </div>
-
-      <section class="extra-address-section">
-        <Input
-          v-model="fromPostalCode"
-          height="54px"
-          width="292px"
-          placeholder="Индекс"
-          :error="formErrors.fromPostalCode"
-        />
-        <Input
-          v-model="shipmentPoint"
-          height="54px"
-          width="292px"
-          placeholder="Код ПВЗ отправки (если со склада)"
-        />
-      </section>
     </section>
 
     <!-- Адрес КУДА -->
     <section class="address-section">
-      <section class="required-address-section">
-        <div class="required-address-inputs">
-          <h4 class="section-title">Куда</h4>
-          <Autocomplete
-            v-model="toCity"
-            :suggestions="toCitySuggestions"
-            :loading="toCityLoading"
-            placeholder="Город получателя"
-            width="292px"
-            height="54px"
-            :error="formErrors.toCity"
-            @select="handleToCitySelect"
-          />
-          <Autocomplete
-            v-model="toAddress"
-            :suggestions="toAddressSuggestions"
-            :loading="toAddressLoading"
-            placeholder="Адрес получателя"
-            width="292px"
-            height="54px"
-            @select="handleToAddressSelect"
-          />
-        </div>
-        <div class="map">
-          <p @click="isMapModalOpen = true">Указать на карте</p>
-          <svg
-            width="19"
-            height="19"
-            viewBox="0 0 19 19"
-            fill="none"
-            xmlns="http://www.w3.org/2000/svg"
-          >
-            <path
-              d="M15.1438 8.22777C15.1438 11.842 11.1343 15.6061 9.78793 16.7686C9.6625 16.8629 9.50982 16.9139 9.35289 16.9139C9.19596 16.9139 9.04328 16.8629 8.91785 16.7686C7.57147 15.6061 3.56201 11.842 3.56201 8.22777C3.56201 6.69193 4.17212 5.219 5.25812 4.133C6.34412 3.047 7.81705 2.43689 9.35289 2.43689C10.8887 2.43689 12.3617 3.047 13.4477 4.133C14.5337 5.219 15.1438 6.69193 15.1438 8.22777Z"
-              stroke="#344E41"
-              stroke-linecap="round"
-              stroke-linejoin="round"
+      <h4 class="section-title">Куда</h4>
+      <div class="common-address">
+        <section class="required-address-section">
+          <div class="required-address-inputs">
+            <Autocomplete
+              v-model="toCity"
+              :suggestions="toCitySuggestions"
+              :loading="toCityLoading"
+              placeholder="Город получателя"
+              width="308px"
+              height="54px"
+              :error="formErrors.toCity"
+              @select="handleToCitySelect"
             />
-            <path
-              d="M9.35273 10.3993C10.5521 10.3993 11.5243 9.42706 11.5243 8.22773C11.5243 7.0284 10.5521 6.05615 9.35273 6.05615C8.1534 6.05615 7.18115 7.0284 7.18115 8.22773C7.18115 9.42706 8.1534 10.3993 9.35273 10.3993Z"
-              stroke="#344E41"
-              stroke-linecap="round"
-              stroke-linejoin="round"
+            <Autocomplete
+              v-model="toAddress"
+              :suggestions="toAddressSuggestions"
+              :loading="toAddressLoading"
+              placeholder="Адрес получателя"
+              width="308px"
+              height="54px"
+              @select="handleToAddressSelect"
             />
-          </svg>
-        </div>
-      </section>
-      <section class="extra-address-section">
-        <Input
-          v-model="toPostalCode"
-          height="54px"
-          width="292px"
-          placeholder="Индекс"
-          :error="formErrors.toPostalCode"
-        />
-        <Input
-          v-model="deliveryPoint"
-          height="54px"
-          width="292px"
-          placeholder="Код ПВЗ получения (если на склад/постамат)"
-        />
-      </section>
+          </div>
+          <div class="map">
+            <p @click="isMapModalOpen = true">Указать на карте</p>
+            <svg
+              width="19"
+              height="19"
+              viewBox="0 0 19 19"
+              fill="none"
+              xmlns="http://www.w3.org/2000/svg"
+            >
+              <path
+                d="M15.1438 8.22777C15.1438 11.842 11.1343 15.6061 9.78793 16.7686C9.6625 16.8629 9.50982 16.9139 9.35289 16.9139C9.19596 16.9139 9.04328 16.8629 8.91785 16.7686C7.57147 15.6061 3.56201 11.842 3.56201 8.22777C3.56201 6.69193 4.17212 5.219 5.25812 4.133C6.34412 3.047 7.81705 2.43689 9.35289 2.43689C10.8887 2.43689 12.3617 3.047 13.4477 4.133C14.5337 5.219 15.1438 6.69193 15.1438 8.22777Z"
+                stroke="#344E41"
+                stroke-linecap="round"
+                stroke-linejoin="round"
+              />
+              <path
+                d="M9.35273 10.3993C10.5521 10.3993 11.5243 9.42706 11.5243 8.22773C11.5243 7.0284 10.5521 6.05615 9.35273 6.05615C8.1534 6.05615 7.18115 7.0284 7.18115 8.22773C7.18115 9.42706 8.1534 10.3993 9.35273 10.3993Z"
+                stroke="#344E41"
+                stroke-linecap="round"
+                stroke-linejoin="round"
+              />
+            </svg>
+          </div>
+        </section>
+        <section class="extra-address-section">
+          <Input
+            v-model="toPostalCode"
+            height="54px"
+            width="278px"
+            placeholder="Индекс"
+            :error="formErrors.toPostalCode"
+          />
+          <Input
+            v-model="deliveryPoint"
+            height="54px"
+            width="338px"
+            placeholder="Код ПВЗ получения (если на склад/постамат)"
+          />
+        </section>
+      </div>
     </section>
 
     <section class="customer-seller-section">
       <section class="customer-section">
-        <h4 class="customer-seller-h4">Данные заказчика</h4>
+        <h4 class="customer-seller-h4">Данные отправителя</h4>
         <Autocomplete
           v-model="customerName"
           :suggestions="customerNameSuggestions"
@@ -1262,7 +1257,7 @@ const resetForm = () => {
         />
       </section>
       <section class="seller-section">
-        <h4 class="customer-seller-h4">Данные продавца</h4>
+        <h4 class="customer-seller-h4">Данные получателя</h4>
         <Autocomplete
           v-model="sellerName"
           :suggestions="sellerNameSuggestions"
@@ -1275,65 +1270,60 @@ const resetForm = () => {
       </section>
     </section>
     <section class="packages-section">
-      <div class="packages">
-        <div
-          v-for="(pkg, index) in packages"
-          :key="index"
-          class="package"
-          :style="{
-            marginBottom:
-              packageErrors[index] &&
-              (packageErrors[index].weight ||
-                packageErrors[index].length ||
-                packageErrors[index].width ||
-                packageErrors[index].height)
-                ? '40px'
-                : '10px',
-          }"
-        >
-          <!-- <Dropdown
-            v-model="pkg.type"
-            :options="packageTypeOptions"
-            placeholder="Тип вложения"
-            width="250px"
-            height="54px"
-          /> -->
-          <Input
-            v-model="pkg.weight"
-            height="54px"
-            width="217px"
-            placeholder="Вес(гр)"
-            :error="packageErrors[index]?.weight"
-            @update:modelValue="() => clearPackageError(0, 'weight')"
-          />
-          <Input
-            v-model="pkg.length"
-            height="54px"
-            width="217px"
-            placeholder="Длина(см)"
-            :error="packageErrors[index]?.length"
-            @update:modelValue="() => clearPackageError(0, 'length')"
-          />
-          <Input
-            v-model="pkg.width"
-            height="54px"
-            width="217px"
-            placeholder="Ширина(см)"
-            :error="packageErrors[index]?.width"
-            @update:modelValue="() => clearPackageError(0, 'width')"
-          />
-          <Input
-            v-model="pkg.height"
-            height="54px"
-            width="217px"
-            placeholder="Высота(см)"
-            :error="packageErrors[index]?.height"
-            @update:modelValue="() => clearPackageError(0, 'height')"
-          />
-          <div v-if="index === 0" class="patch"></div>
-          <!-- Кнопка удаления пакета -->
-          <button v-if="index > 0" class="remove-btn" @click="removePackage(index)">
-            <!-- <svg
+      <h4 class="package-title">Посылка(-и)</h4>
+      <div class="packages-container">
+        <div class="packages">
+          <div
+            v-for="(pkg, index) in packages"
+            :key="index"
+            class="package"
+            :style="{
+              marginBottom:
+                packageErrors[index] &&
+                (packageErrors[index].weight ||
+                  packageErrors[index].length ||
+                  packageErrors[index].width ||
+                  packageErrors[index].height)
+                  ? '40px'
+                  : '10px',
+            }"
+          >
+            <Input
+              v-model="pkg.weight"
+              height="54px"
+              width="217px"
+              placeholder="Вес(гр)"
+              :error="packageErrors[index]?.weight"
+              @update:modelValue="() => clearPackageError(0, 'weight')"
+            />
+            <Input
+              v-model="pkg.length"
+              height="54px"
+              width="217px"
+              placeholder="Длина(см)"
+              :error="packageErrors[index]?.length"
+              @update:modelValue="() => clearPackageError(0, 'length')"
+            />
+            <Input
+              v-model="pkg.width"
+              height="54px"
+              width="217px"
+              placeholder="Ширина(см)"
+              :error="packageErrors[index]?.width"
+              @update:modelValue="() => clearPackageError(0, 'width')"
+            />
+            <Input
+              v-model="pkg.height"
+              height="54px"
+              width="217px"
+              placeholder="Высота(см)"
+              :error="packageErrors[index]?.height"
+              @update:modelValue="() => clearPackageError(0, 'height')"
+            />
+            <div v-if="index === 0" class="patch"></div>
+            <!-- Кнопка удаления пакета -->
+            <button v-if="index > 0" class="remove-btn" @click="removePackage(index)">
+              <!-- <svg
               width="39"
               height="25"
               viewBox="0 0 39 25"
@@ -1342,13 +1332,13 @@ const resetForm = () => {
             >
               <line x1="12" y1="11.5" x2="27" y2="11.5" stroke="white" />
             </svg> -->
-            Удалить посылку
-          </button>
+              Удалить посылку
+            </button>
+          </div>
         </div>
-      </div>
-      <div class="plus-btn-container">
-        <button class="plus-btn" @click="addPackage">
-          <!-- <svg
+        <div class="plus-btn-container">
+          <button class="plus-btn" @click="addPackage">
+            <!-- <svg
             width="39"
             height="25"
             viewBox="0 0 39 25"
@@ -1358,8 +1348,9 @@ const resetForm = () => {
             <line x1="12" y1="11.5" x2="27" y2="11.5" stroke="white" />
             <line x1="19.5" y1="4" x2="19.5" y2="19" stroke="white" />
           </svg> -->
-          Добавить посылку
-        </button>
+            Добавить посылку
+          </button>
+        </div>
       </div>
     </section>
     <section class="proccesing-section">
@@ -1418,6 +1409,13 @@ const resetForm = () => {
 
     <section class="confirmation-section">
       <Input v-model="totalCost" height="54px" width="308px" placeholder="Итого" disabled />
+      <Dropdown
+        v-model="payer"
+        :options="payerOptions"
+        placeholder="Оплачивает"
+        width="308px"
+        height="54px"
+      />
       <button class="submit-confirmation-btn" @click="createOrder">Сделать заказ</button>
     </section>
 
@@ -1457,7 +1455,6 @@ const resetForm = () => {
   display: flex;
   align-items: center;
   justify-content: center;
-  min-height: calc(100dvh - 68px - 56px);
 }
 
 .dropdawn-section {
@@ -1468,6 +1465,12 @@ const resetForm = () => {
 
 .address-section {
   margin-top: 20px;
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+}
+
+.common-address {
   display: flex;
   gap: 10px;
 }
@@ -1601,7 +1604,16 @@ const resetForm = () => {
 .packages-section {
   margin-top: 20px;
   display: flex;
+  flex-direction: column;
   gap: 10px;
+}
+
+.packages-container {
+  display: flex;
+}
+
+.package-title {
+  margin-left: 30px;
 }
 
 .packages {
@@ -1626,7 +1638,7 @@ const resetForm = () => {
   display: flex;
   align-items: center;
   justify-content: center;
-  width: 170px;
+  width: 180px;
   height: 54px;
   background-color: #d61b1b;
   border: none;
@@ -1638,7 +1650,7 @@ const resetForm = () => {
 }
 
 .plus-btn-container {
-  width: 170px;
+  width: 180px;
   height: 54px;
   display: flex;
   align-items: center;
@@ -1691,10 +1703,10 @@ const resetForm = () => {
 }
 
 .section-title {
-  width: 52px;
   display: flex;
   align-items: center;
-  justify-content: center;
+  justify-content: flex-start;
+  margin-left: 30px;
 }
 
 .confirmation-section {
