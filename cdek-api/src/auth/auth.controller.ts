@@ -108,7 +108,7 @@ export class AuthController {
     const refreshToken = request.cookies?.['refresh_token'];
 
     if (!refreshToken) {
-      throw new UnauthorizedException('Refresh token не найден');
+      throw new UnauthorizedException('Пользователь не найден или пароль неверный');
     }
 
     const result = await this.authService.refreshTokens(refreshToken);

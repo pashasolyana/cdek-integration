@@ -6,7 +6,7 @@ import {
   YandexMapDefaultSchemeLayer,
   YandexMapMarker,
 } from 'vue-yandex-maps'
-import { onMounted, ref, shallowRef, version, watch, computed } from 'vue'
+import { onMounted, onUnmounted, ref, shallowRef, version, watch, computed } from 'vue'
 import type { YMap } from '@yandex/ymaps3-types'
 import type { YMapClusterer } from '@yandex/ymaps3-types/packages/clusterer'
 import { cdekService } from '@/services/cdek.service'
@@ -70,15 +70,23 @@ const mapCenter = ref<[number, number]>([
 ])
 const mapZoom = ref(props.cityName ? 12 : 10)
 
-console.log('🗺️ YMap инициализирован с координатами:', mapCenter.value, 'zoom:', mapZoom.value, 'город:', props.cityName)
+console.log('🗺️ [INIT] YMap инициализирован')
+console.log('📍 [INIT] Props:', {
+  cityName: props.cityName,
+  cityLatitude: props.cityLatitude,
+  cityLongitude: props.cityLongitude
+})
+console.log('🎯 [INIT] Начальный центр карты:', mapCenter.value)
+console.log('🔍 [INIT] Начальный zoom:', mapZoom.value)
 
 const map = shallowRef<YMap | null>(null)
 const clusterer = shallowRef<YMapClusterer | null>(null)
 const gridSize = ref(6)
 const zoom = ref(0)
 
-// Debounce для избежания частых запросов
+// Debounce и интервалы для избежания частых запросов
 let loadTimeout: ReturnType<typeof setTimeout> | null = null
+const checkInterval = ref<ReturnType<typeof setInterval> | null>(null)
 
 // Получение границ видимой области карты
 const getMapBounds = () => {
@@ -173,9 +181,12 @@ const debouncedLoadPoints = () => {
     clearTimeout(loadTimeout)
   }
   
+  // Показываем индикатор загрузки
+  loading.value = true
+  
   loadTimeout = setTimeout(() => {
     loadDeliveryPointsForCurrentView()
-  }, 800) // Увеличена задержка для снижения нагрузки
+  }, 500) // Оптимальная задержка
 }
 
 // Обработчик изменения области просмотра
@@ -332,87 +343,180 @@ const loadAllPoints = async () => {
 }
 
 onMounted(async () => {
-  console.log('🚀 Компонент YMap монтируется...')
-  console.log('📍 Город:', props.cityName, 'Координаты:', props.cityLatitude, props.cityLongitude)
+  console.log('🚀 [MOUNTED] Компонент YMap монтируется...')
+  console.log('📍 [MOUNTED] Текущие props:', {
+    cityName: props.cityName,
+    cityLatitude: props.cityLatitude,
+    cityLongitude: props.cityLongitude
+  })
+  console.log('🎯 [MOUNTED] Текущий mapCenter:', mapCenter.value)
+  console.log('🔍 [MOUNTED] Текущий mapZoom:', mapZoom.value)
   
   if (version.startsWith('2')) {
     console.warn('⚠️ Vue версии 2 обнаружена, некоторые функции могут не работать')
     return
   }
   
-  // Ждём инициализации карты
-  console.log('⏳ Ожидание инициализации карты...')
-  await new Promise(resolve => setTimeout(resolve, 1500))
-  
-  isMapReady.value = true
-  isInitialLoad.value = false
-  
-  // Загружаем точки для текущей области после инициализации
-  if (map.value) {
-    console.log('✅ Карта инициализирована, загружаем точки')
-    await loadDeliveryPointsForCurrentView()
-  } else {
-    console.warn('⚠️ Карта не инициализирована после таймаута')
-  }
-  
-  setInterval(() => {
-    if (map.value) {
-      zoom.value = map.value.zoom
-    }
-  }, 1000)
+  // Watch на map сам запустит инициализацию
+  console.log('⏳ [MOUNTED] Ожидаем инициализации карты через watch...')
 })
 
+onUnmounted(() => {
+  console.log('👋 [UNMOUNTED] Компонент размонтируется, очищаем интервалы')
+  
+  if (checkInterval.value) {
+    clearInterval(checkInterval.value)
+    console.log('✅ [UNMOUNTED] Интервал проверки карты очищен')
+  }
+  
+  if (interactionTimeout) {
+    clearTimeout(interactionTimeout)
+    console.log('✅ [UNMOUNTED] Таймаут взаимодействия очищен')
+  }
+  
+  if (loadTimeout) {
+    clearTimeout(loadTimeout)
+    console.log('✅ [UNMOUNTED] Таймаут загрузки очищен')
+  }
+})
+
+// Отслеживание изменений центра и зума карты
+let lastCenter: [number, number] | null = null
+let lastZoom: number | null = null
+let lastBounds: string | null = null
+let isUserInteracting = false
+let interactionTimeout: ReturnType<typeof setTimeout> | null = null
+
+const checkMapChanges = () => {
+  if (!map.value || !isMapReady.value || isInitialLoad.value) return
+
+  const currentBounds = map.value.bounds
+  if (!currentBounds || currentBounds.length !== 2) return
+
+  // Проверяем значимые изменения bounds (минимум 0.01 градуса = ~1км)
+  const threshold = 0.01
+  const boundsChanged = !lastBounds || 
+    Math.abs(currentBounds[0][0] - JSON.parse(lastBounds)[0][0]) > threshold ||
+    Math.abs(currentBounds[0][1] - JSON.parse(lastBounds)[0][1]) > threshold ||
+    Math.abs(currentBounds[1][0] - JSON.parse(lastBounds)[1][0]) > threshold ||
+    Math.abs(currentBounds[1][1] - JSON.parse(lastBounds)[1][1]) > threshold
+
+  if (!boundsChanged) return
+  
+  // Сбрасываем таймер взаимодействия
+  if (interactionTimeout) {
+    clearTimeout(interactionTimeout)
+  }
+  
+  isUserInteracting = true
+  
+  // Сохраняем текущие значения для использования в таймауте
+  const savedBounds = JSON.stringify(currentBounds)
+  const savedCenter = map.value.center ? [...map.value.center] as [number, number] : null
+  const savedZoom = map.value.zoom
+  
+  // Устанавливаем таймер: если через 1000ms не будет изменений - загружаем
+  interactionTimeout = setTimeout(() => {
+    if (!map.value) return
+    
+    isUserInteracting = false
+    
+    lastCenter = savedCenter
+    lastZoom = savedZoom
+    lastBounds = savedBounds
+    
+    loadDeliveryPointsForCurrentView()
+  }, 1000)
+}
+
 watch(map, (val) => {
-  console.log('🗺️ Map watch triggered, значение:', val ? 'есть' : 'нет')
   if (val && !isMapReady.value) {
-    console.log('✅ Карта готова в watch, устанавливаем флаг готовности')
     setTimeout(() => {
+      if (!map.value) return
+      
       isMapReady.value = true
       isInitialLoad.value = false
       loadDeliveryPointsForCurrentView()
+      
+      // Инициализируем отслеживание
+      lastCenter = map.value.center ? [...map.value.center] as [number, number] : null
+      lastZoom = map.value.zoom
+      lastBounds = map.value.bounds ? JSON.stringify(map.value.bounds) : null
+      
+      // Очищаем старый интервал если был
+      if (checkInterval.value) {
+        clearInterval(checkInterval.value)
+      }
+      
+      // Запускаем периодическую проверку изменений карты каждые 500ms
+      checkInterval.value = setInterval(() => {
+        checkMapChanges()
+      }, 500)
     }, 1000)
   }
 })
 
 watch(clusterer, (val) => console.log('📍 Clusterer:', val ? 'инициализирован' : 'нет'))
 
-// Отслеживаем изменения bounds карты (перемещение, зум)
-watch(() => map.value?.bounds, (newBounds, oldBounds) => {
-  if (!isMapReady.value || isInitialLoad.value) return
-  
-  // Проверяем, действительно ли bounds изменились
-  if (JSON.stringify(newBounds) !== JSON.stringify(oldBounds)) {
-    console.log('🔄 Bounds изменились, планируем загрузку')
-    handleMapUpdate()
-  }
-}, { deep: true })
-
 // Отслеживаем изменения входных координат города
-watch(() => [props.cityLatitude, props.cityLongitude, props.cityName], ([lat, lon, city]) => {
-  console.log('🔍 Props изменились:', { city, lat, lon })
+watch(() => [props.cityLatitude, props.cityLongitude, props.cityName], (newVal, oldVal) => {
+  const [lat, lon, city] = newVal
+  const [oldLat, oldLon, oldCity] = oldVal || [undefined, undefined, undefined]
+  console.log('🔍 [WATCH:props] Props изменились!')
+  console.log('📍 [WATCH:props] Старые значения:', { city: oldCity, lat: oldLat, lon: oldLon })
+  console.log('📍 [WATCH:props] Новые значения:', { city, lat, lon })
+  console.log('🗺️ [WATCH:props] Текущий mapCenter:', mapCenter.value)
+  console.log('🔍 [WATCH:props] Текущий mapZoom:', mapZoom.value)
+  
   if (city && lat && lon) {
-    console.log('🎯 Город изменился, центрируем карту:', city, lat, lon)
-    mapCenter.value = [Number(lon), Number(lat)]
+    console.log('🎯 [WATCH:props] Все данные есть, центрируем карту')
+    const newCenter: [number, number] = [Number(lon), Number(lat)]
+    console.log('📍 [WATCH:props] Устанавливаем новый центр:', newCenter)
+    mapCenter.value = newCenter
     mapZoom.value = 12
+    
+    console.log('✅ [WATCH:props] Центр и zoom обновлены')
+    console.log('🗺️ [WATCH:props] mapCenter после обновления:', mapCenter.value)
+    console.log('🔍 [WATCH:props] mapZoom после обновления:', mapZoom.value)
+    
+    // Проверяем, обновилась ли карта
+    if (map.value) {
+      console.log('🗺️ [WATCH:props] Фактический центр карты:', map.value.center)
+      console.log('🔍 [WATCH:props] Фактический zoom карты:', map.value.zoom)
+    }
     
     // Загружаем точки через небольшую задержку после центрирования
     setTimeout(() => {
+      console.log('⏰ [WATCH:props] Таймаут сработал, isMapReady:', isMapReady.value)
       if (isMapReady.value) {
+        console.log('✅ [WATCH:props] Карта готова, загружаем точки')
         loadDeliveryPointsForCurrentView()
+      } else {
+        console.warn('⚠️ [WATCH:props] Карта еще не готова')
       }
     }, 1000)
   } else {
-    console.log('⚠️ Недостаточно данных для центрирования:', { city, lat, lon })
+    console.log('⚠️ [WATCH:props] Недостаточно данных для центрирования')
+    console.log('❌ [WATCH:props] Отсутствующие данные:', {
+      hasCity: !!city,
+      hasLat: !!lat,
+      hasLon: !!lon
+    })
   }
-})
+}, { immediate: true })
 
 </script>
 
 <template>
   <div class="map-container">
-    <!-- Индикатор загрузки -->
-    <div v-if="loading" class="loading-overlay">
-      <div class="loading-spinner">Загрузка пунктов выдачи...</div>
+    <!-- Компактный индикатор загрузки -->
+    <div v-if="loading" class="loading-indicator">
+      <div class="loading-spinner-small">
+        <svg class="spinner-icon" viewBox="0 0 50 50">
+          <circle cx="25" cy="25" r="20" fill="none" stroke-width="5"></circle>
+        </svg>
+        <span>Загрузка...</span>
+      </div>
     </div>
 
     <!-- Сообщение об ошибке -->
@@ -425,6 +529,9 @@ watch(() => [props.cityLatitude, props.cityLongitude, props.cityName], ([lat, lo
       <div class="points-counter">
         <span class="counter-label">Точек на карте:</span>
         <span class="counter-value">{{ deliveryPoints.length }}</span>
+        <span v-if="isMapReady && checkInterval" class="auto-update-indicator" title="Автообновление включено">
+          🔄
+        </span>
       </div>
       <button 
         class="refresh-btn" 
@@ -640,26 +747,56 @@ watch(() => [props.cityLatitude, props.cityLongitude, props.cityName], ([lat, lo
   height: 100%;
 }
 
-.loading-overlay {
+/* Компактный индикатор загрузки */
+.loading-indicator {
   position: absolute;
-  top: 0;
-  left: 0;
-  right: 0;
-  bottom: 0;
-  background: rgba(255, 255, 255, 0.9);
-  display: flex;
-  align-items: center;
-  justify-content: center;
+  top: 80px;
+  left: 20px;
   z-index: 1000;
+  pointer-events: none;
 }
 
-.loading-spinner {
-  padding: 20px 40px;
-  background: white;
-  border-radius: 8px;
-  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.1);
-  font-size: 16px;
-  color: #333;
+.loading-spinner-small {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 8px 16px;
+  background: rgba(0, 185, 86, 0.95);
+  color: white;
+  border-radius: 20px;
+  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.2);
+  font-size: 13px;
+  font-weight: 600;
+  backdrop-filter: blur(4px);
+}
+
+.spinner-icon {
+  width: 16px;
+  height: 16px;
+  animation: spin 1s linear infinite;
+}
+
+.spinner-icon circle {
+  stroke: white;
+  stroke-linecap: round;
+  stroke-dasharray: 90, 150;
+  stroke-dashoffset: 0;
+  animation: dash 1.5s ease-in-out infinite;
+}
+
+@keyframes dash {
+  0% {
+    stroke-dasharray: 1, 150;
+    stroke-dashoffset: 0;
+  }
+  50% {
+    stroke-dasharray: 90, 150;
+    stroke-dashoffset: -35;
+  }
+  100% {
+    stroke-dasharray: 90, 150;
+    stroke-dashoffset: -124;
+  }
 }
 
 .error-message {
@@ -693,6 +830,22 @@ watch(() => [props.cityLatitude, props.cityLongitude, props.cityName], ([lat, lo
   display: flex;
   align-items: center;
   gap: 8px;
+}
+
+.auto-update-indicator {
+  font-size: 12px;
+  animation: pulse 2s ease-in-out infinite;
+}
+
+@keyframes pulse {
+  0%, 100% {
+    opacity: 0.5;
+    transform: scale(1);
+  }
+  50% {
+    opacity: 1;
+    transform: scale(1.2);
+  }
 }
 
 .counter-label {

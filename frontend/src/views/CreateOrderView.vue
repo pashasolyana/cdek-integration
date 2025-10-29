@@ -38,11 +38,11 @@ onBeforeUnmount(() => {
   window.removeEventListener('keydown', handleEsc)
 })
 
-const payer = ref<string | null>(null)
+const payer = ref<string | null>('sender') // Дефолт: отправитель платит
 
 // Основные данные формы
 const tradingCompany = ref<string | null>(null)
-const deliveryMethod = ref<string | null>(null)
+const deliveryMethod = ref<string | null>('door') // Дефолт: до двери
 
 // ---------Обработка доступности инпутов
 
@@ -132,15 +132,33 @@ interface TariffOption {
     min?: string
     max?: string
   }
+  category?: string // Категория тарифа (Самый быстрый, Самый дешевый, Оптимальный)
 }
 
 // Режимы доставки для определения типа тарифа
 enum DeliveryMode {
   DOOR_DOOR = 1, // от двери до двери
-  DOOR_WAREHOUSE = 2, // от двери до склада
+  DOOR_WAREHOUSE = 2, // от двери до склада (до ПВЗ)
   WAREHOUSE_DOOR = 3, // со склада до двери
-  WAREHOUSE_WAREHOUSE = 4, // со склада до склада
-  DOOR_POSTAMAT = 6, // от двери до постамата
+  WAREHOUSE_WAREHOUSE = 4, // со склада до склада (до ПВЗ)
+  DOOR_POSTAMAT = 6, // от двери до постамата (до ПВЗ)
+}
+
+// Функция определения, подходит ли тариф для выбранного способа доставки
+const isTariffSuitableForDeliveryMethod = (tariff: TariffOption, method: string): boolean => {
+  const mode = typeof tariff.delivery_mode === 'number' ? tariff.delivery_mode : parseInt(String(tariff.delivery_mode))
+  
+  if (method === 'door') {
+    // До двери - только тарифы с доставкой до двери (mode 1 или 3)
+    return mode === DeliveryMode.DOOR_DOOR || mode === DeliveryMode.WAREHOUSE_DOOR
+  } else if (method === 'pvz') {
+    // До ПВЗ - тарифы с доставкой до склада/постамата (mode 2, 4, 6)
+    return mode === DeliveryMode.DOOR_WAREHOUSE || 
+           mode === DeliveryMode.WAREHOUSE_WAREHOUSE || 
+           mode === DeliveryMode.DOOR_POSTAMAT
+  }
+  
+  return true // На всякий случай показываем все, если метод неизвестен
 }
 
 type AlertType = 'success' | 'error'
@@ -534,7 +552,9 @@ const searchSellerName = async (query: string) => {
 
 // Обработчики выбора
 const handleFromCitySelect = (suggestion: { value: string; label: string; data?: any }) => {
-  console.log('Выбран город отправления:', suggestion)
+  console.log('🏙️ [FROM] Выбран город отправления:', suggestion)
+  console.log('📊 [FROM] Полные данные suggestion.data:', suggestion.data)
+  
   if (suggestion.data) {
     fromCitySelected.value = true
     fromCityCode.value = suggestion.data.code
@@ -544,10 +564,18 @@ const handleFromCitySelect = (suggestion: { value: string; label: string; data?:
     if (suggestion.data.latitude !== undefined && suggestion.data.longitude !== undefined) {
       fromCityLatitude.value = suggestion.data.latitude
       fromCityLongitude.value = suggestion.data.longitude
+      console.log('✅ [FROM] Координаты найдены и сохранены:', {
+        latitude: fromCityLatitude.value,
+        longitude: fromCityLongitude.value
+      })
+    } else {
+      console.warn('⚠️ [FROM] Координаты отсутствуют в данных города!')
+      fromCityLatitude.value = undefined
+      fromCityLongitude.value = undefined
     }
     
     fromCountryCode.value = suggestion.data.country_code || 'RU'
-    console.log('Сохранены данные города отправления:', {
+    console.log('💾 [FROM] Сохранены данные города отправления:', {
       code: fromCityCode.value,
       city: fromCityName.value,
       latitude: fromCityLatitude.value,
@@ -564,7 +592,9 @@ const handleFromCitySelect = (suggestion: { value: string; label: string; data?:
 }
 
 const handleToCitySelect = (suggestion: { value: string; label: string; data?: any }) => {
-  console.log('Выбран город получения:', suggestion)
+  console.log('🏙️ [TO] Выбран город получения:', suggestion)
+  console.log('📊 [TO] Полные данные suggestion.data:', suggestion.data)
+  
   if (suggestion.data) {
     toCitySelected.value = true
     toCityCode.value = suggestion.data.code
@@ -574,10 +604,18 @@ const handleToCitySelect = (suggestion: { value: string; label: string; data?: a
     if (suggestion.data.latitude !== undefined && suggestion.data.longitude !== undefined) {
       toCityLatitude.value = suggestion.data.latitude
       toCityLongitude.value = suggestion.data.longitude
+      console.log('✅ [TO] Координаты найдены и сохранены:', {
+        latitude: toCityLatitude.value,
+        longitude: toCityLongitude.value
+      })
+    } else {
+      console.warn('⚠️ [TO] Координаты отсутствуют в данных города!')
+      toCityLatitude.value = undefined
+      toCityLongitude.value = undefined
     }
     
     toCountryCode.value = suggestion.data.country_code || 'RU'
-    console.log('Сохранены данные города получения:', {
+    console.log('💾 [TO] Сохранены данные города получения:', {
       code: toCityCode.value,
       city: toCityName.value,
       latitude: toCityLatitude.value,
@@ -616,7 +654,24 @@ const openMapForAddress = (context: 'from' | 'to') => {
   const cityLat = context === 'from' ? fromCityLatitude.value : toCityLatitude.value
   const cityLon = context === 'from' ? fromCityLongitude.value : toCityLongitude.value
   
-  console.log('Открытие карты:', { context, citySelected, cityName, cityLat, cityLon })
+  console.log('🗺️ [CreateOrderView] ========== ОТКРЫТИЕ КАРТЫ ==========')
+  console.log('📍 [CreateOrderView] Контекст:', context)
+  console.log('✅ [CreateOrderView] Город выбран:', citySelected)
+  console.log('🏙️ [CreateOrderView] Название города:', cityName)
+  console.log('📍 [CreateOrderView] Широта:', cityLat, 'Тип:', typeof cityLat)
+  console.log('📍 [CreateOrderView] Долгота:', cityLon, 'Тип:', typeof cityLon)
+  console.log('📊 [CreateOrderView] Все данные from:', {
+    fromCityName: fromCityName.value,
+    fromCityLatitude: fromCityLatitude.value,
+    fromCityLongitude: fromCityLongitude.value,
+    fromCitySelected: fromCitySelected.value
+  })
+  console.log('📊 [CreateOrderView] Все данные to:', {
+    toCityName: toCityName.value,
+    toCityLatitude: toCityLatitude.value,
+    toCityLongitude: toCityLongitude.value,
+    toCitySelected: toCitySelected.value
+  })
   
   if (!citySelected || !cityName) {
     alert('Сначала выберите город из списка или карта откроется с центром в Москве')
@@ -625,6 +680,8 @@ const openMapForAddress = (context: 'from' | 'to') => {
   mapContext.value = context
   mapDeliveryPoints.value = []
   isMapModalOpen.value = true
+  
+  console.log('✅ [CreateOrderView] Модальное окно открыто, mapContext:', mapContext.value)
 }
 
 const handlePointsUpdate = (points: any[]) => {
@@ -654,6 +711,13 @@ const handlePointSelect = async (point: any) => {
     // Заполняем адрес (без города)
     fromAddress.value = point.address || point.addressFull
     formErrors.fromAddress = ''
+    
+    // Заполняем индекс из данных пункта выдачи (приоритетно)
+    if (point.postalCode) {
+      fromPostalCode.value = point.postalCode
+      formErrors.fromPostalCode = ''
+      console.log('✅ Установлен индекс из ПВЗ:', point.postalCode)
+    }
     
     // Заполняем город
     if (point.city) {
@@ -685,9 +749,11 @@ const handlePointSelect = async (point: any) => {
             console.log('Обновлены координаты из API города:', cityData.latitude, cityData.longitude)
           }
           
-          if (cityData.postal_codes && cityData.postal_codes.length > 0) {
+          // Если индекс не был заполнен из ПВЗ, берем из города
+          if (!fromPostalCode.value && cityData.postal_codes && cityData.postal_codes.length > 0) {
             fromPostalCode.value = cityData.postal_codes[0]
             formErrors.fromPostalCode = ''
+            console.log('✅ Установлен индекс из API города:', fromPostalCode.value)
           }
           console.log('Установлен код города отправления:', fromCityCode.value)
         }
@@ -702,6 +768,13 @@ const handlePointSelect = async (point: any) => {
     // Заполняем адрес (без города)
     toAddress.value = point.address || point.addressFull
     formErrors.toAddress = ''
+    
+    // Заполняем индекс из данных пункта выдачи (приоритетно)
+    if (point.postalCode) {
+      toPostalCode.value = point.postalCode
+      formErrors.toPostalCode = ''
+      console.log('✅ Установлен индекс из ПВЗ:', point.postalCode)
+    }
     
     // Заполняем город
     if (point.city) {
@@ -733,9 +806,11 @@ const handlePointSelect = async (point: any) => {
             console.log('Обновлены координаты из API города:', cityData.latitude, cityData.longitude)
           }
           
-          if (cityData.postal_codes && cityData.postal_codes.length > 0) {
+          // Если индекс не был заполнен из ПВЗ, берем из города
+          if (!toPostalCode.value && cityData.postal_codes && cityData.postal_codes.length > 0) {
             toPostalCode.value = cityData.postal_codes[0]
             formErrors.toPostalCode = ''
+            console.log('✅ Установлен индекс из API города:', toPostalCode.value)
           }
           console.log('Установлен код города получения:', toCityCode.value)
         }
@@ -838,6 +913,18 @@ watch([tradingCompany, deliveryMethod, customerPhone], () => {
 
 watch([fromCityName, toCityName], () => {
   resetOrderError()
+})
+
+// При изменении способа доставки очищаем результаты расчета
+watch(deliveryMethod, (newMethod, oldMethod) => {
+  if (oldMethod !== null && newMethod !== oldMethod && tariffResults.value.length > 0) {
+    console.log(`🔄 Способ доставки изменен с "${oldMethod}" на "${newMethod}", требуется пересчет тарифов`)
+    clearCalculationResults()
+    calculationAlert.value = {
+      type: 'error',
+      message: 'Способ доставки изменен. Пожалуйста, пересчитайте стоимость.',
+    }
+  }
 })
 
 // Добавить посылку
@@ -988,24 +1075,32 @@ const calculateCost = async () => {
   }
 
   try {
-    const tariffs = await cdekService.calculateTariff(requestData)
-    tariffResults.value = tariffs
+    const allTariffs = await cdekService.calculateTariff(requestData)
+    
+    // Фильтруем тарифы в соответствии с выбранным способом доставки
+    const filteredTariffs = allTariffs.filter(tariff => 
+      isTariffSuitableForDeliveryMethod(tariff, deliveryMethod.value!)
+    )
+    
+    tariffResults.value = filteredTariffs
 
-    if (!tariffs.length) {
+    console.log(`📦 Всего тарифов от CDEK: ${allTariffs.length}, подходящих для "${deliveryMethod.value}": ${filteredTariffs.length}`)
+
+    if (!filteredTariffs.length) {
       clearCalculationResults()
       calculationAlert.value = {
         type: 'error',
-        message: 'Не удалось подобрать тарифы для указанных параметров.',
+        message: `Не удалось подобрать тарифы для доставки "${deliveryMethod.value === 'door' ? 'до двери' : 'до ПВЗ'}". Попробуйте изменить параметры.`,
       }
       return
     }
 
-    const firstTariff = tariffs[0]
+    const firstTariff = filteredTariffs[0]
     selectedTariffCode.value = firstTariff.tariff_code
     updateTotals(firstTariff.delivery_sum)
     calculationAlert.value = {
       type: 'success',
-      message: `Найдено тарифов: ${tariffs.length}`,
+      message: `Найдено тарифов: ${filteredTariffs.length}`,
     }
   } catch (error: any) {
     console.error('Ошибка расчёта:', error)
@@ -1030,17 +1125,56 @@ watch(sellerPhone, (value) => {
   sellerPhone.value = formatPhone(value)
 })
 
+// Отслеживание изменений координат городов для отладки
+watch([fromCityLatitude, fromCityLongitude, fromCityName], ([lat, lon, name]) => {
+  console.log('🔍 [CreateOrderView:WATCH] FROM city данные изменились:', {
+    name,
+    latitude: lat,
+    longitude: lon,
+    types: {
+      lat: typeof lat,
+      lon: typeof lon
+    }
+  })
+})
+
+watch([toCityLatitude, toCityLongitude, toCityName], ([lat, lon, name]) => {
+  console.log('🔍 [CreateOrderView:WATCH] TO city данные изменились:', {
+    name,
+    latitude: lat,
+    longitude: lon,
+    types: {
+      lat: typeof lat,
+      lon: typeof lon
+    }
+  })
+})
+
 // Создание заказа
 const createOrder = async () => {
   orderAlert.value = null
 
   const validationMessages: string[] = []
-
+  tradingCompany.value = 'Тест компания'
   if (!tradingCompany.value) validationMessages.push('Выберите торговую компанию.')
   if (!deliveryMethod.value) validationMessages.push('Укажите способ доставки.')
   if (!fromCityName.value || !toCityName.value) {
     validationMessages.push('Заполните города отправления и получения.')
   }
+  
+  // Валидация адреса/ПВЗ в зависимости от способа доставки
+  if (deliveryMethod.value === 'door') {
+    // До двери - нужен адрес получателя
+    if (!toAddress.value) {
+      validationMessages.push('Для доставки до двери укажите адрес получателя.')
+    }
+  } else if (deliveryMethod.value === 'pvz') {
+    // До ПВЗ - нужен код ПВЗ получения
+    if (!deliveryPoint.value) {
+      validationMessages.push('Для доставки до ПВЗ выберите пункт выдачи на карте.')
+    }
+  }
+  
   if (!customerName.value || !customerPhone.value) {
     validationMessages.push('Заполните данные заказчика.')
   }
@@ -1092,6 +1226,7 @@ const createOrder = async () => {
           width: parseInt(p.width, 10),
           height: parseInt(p.height, 10),
           comment: '-', // Обязательное непустое значение
+          payment: payer.value === 'receiver' ? 1 : 0, // 1 = получатель, 0 = отправитель
           items: [
             {
               name: 'Товар',
@@ -1114,6 +1249,16 @@ const createOrder = async () => {
             number: sellerPhone.value.startsWith('+') ? sellerPhone.value : `+${sellerPhone.value}`,
           },
         ],
+      }
+    }
+
+    // Наложенный платеж: если получатель платит, добавляем сумму
+    if (payer.value === 'receiver') {
+      const totalAmount = parseFloat(totalCost.value || deliveryCost.value || '0')
+      if (totalAmount > 0) {
+        orderData.delivery_recipient_cost = {
+          value: totalAmount
+        }
       }
     }
 
@@ -1199,7 +1344,8 @@ const createOrder = async () => {
 
 const resetForm = () => {
   tradingCompany.value = null
-  deliveryMethod.value = null
+  deliveryMethod.value = 'door' // Сброс на дефолтное значение
+  payer.value = 'sender' // Сброс на дефолтное значение
   fromCity.value = ''
   fromCityCode.value = null
   fromCityName.value = ''
@@ -1368,7 +1514,9 @@ const resetForm = () => {
             placeholder="Индекс"
             :error="formErrors.fromPostalCode"
           />
+          <!-- Поле скрыто, но остается в логике для автозаполнения через карту -->
           <Input
+            v-if="false"
             v-model="shipmentPoint"
             height="54px"
             width="338px"
@@ -1436,7 +1584,9 @@ const resetForm = () => {
             placeholder="Индекс"
             :error="formErrors.toPostalCode"
           />
+          <!-- Поле скрыто, но остается в логике для автозаполнения через карту -->
           <Input
+            v-if="false"
             v-model="deliveryPoint"
             height="54px"
             width="338px"
@@ -1596,7 +1746,10 @@ const resetForm = () => {
           @click="selectTariff(tariff)"
         >
           <header class="tariff-card__header">
-            <span class="tariff-card__name">{{ tariff.tariff_name }}</span>
+            <div style="display: flex; flex-direction: column; gap: 4px;">
+              <span class="tariff-card__name">{{ tariff.tariff_name }}</span>
+              <span v-if="tariff.category" class="tariff-card__category">{{ tariff.category }}</span>
+            </div>
             <span class="tariff-card__price">{{ formatCurrency(tariff.delivery_sum) }}</span>
           </header>
           <p v-if="tariff.tariff_description" class="tariff-card__description">
@@ -2015,6 +2168,17 @@ const resetForm = () => {
   font-weight: 600;
   font-size: 16px;
   color: #1f3c2d;
+}
+
+.tariff-card__category {
+  font-size: 12px;
+  font-weight: 500;
+  color: #588157;
+  background: #e8f5e9;
+  padding: 3px 10px;
+  border-radius: 12px;
+  display: inline-block;
+  width: fit-content;
 }
 
 .tariff-card__price {

@@ -41,6 +41,13 @@ interface ResolvedPrintJobFile {
   meta: StoredPrintJobMeta;
   absolutePath: string;
 }
+
+interface CachedCityData {
+  code: number;
+  data: any;
+  timestamp: number;
+}
+
 @Injectable()
 export class CdekService implements OnModuleInit {
   private readonly logger = new Logger(CdekService.name);
@@ -50,6 +57,11 @@ export class CdekService implements OnModuleInit {
   private readonly clientSecret: string;
   private currentToken: CdekTokenResponse | null = null;
   private tokenRefreshing = false;
+  
+  // Кэш для координат городов (code -> данные города)
+  private cityCache = new Map<number, CachedCityData>();
+  private readonly CACHE_TTL = 24 * 60 * 60 * 1000; // 24 часа
+  private readonly MAX_CACHE_SIZE = 1000; // Максимум 1000 городов в кэше
 
   constructor(
     private readonly configService: ConfigService,
@@ -76,17 +88,55 @@ export class CdekService implements OnModuleInit {
   }
 
   /**
-   * Инициализация модуля - получаем токен при старте
+   * Инициализация модуля - получаем токен при старте и предзагружаем популярные города
    */
   async onModuleInit() {
     try {
       await this.ensureValidToken();
       this.logger.log('CDEK сервис успешно инициализирован');
+      
+      // Запускаем предзагрузку популярных городов в фоне
+      this.preloadPopularCities().catch(err => {
+        this.logger.warn('Не удалось предзагрузить популярные города:', err.message);
+      });
     } catch (error) {
       this.logger.error(
         'Ошибка при инициализации CDEK сервиса:',
         error.message,
       );
+    }
+  }
+
+  /**
+   * Предзагрузка координат популярных городов России
+   */
+  private async preloadPopularCities() {
+    const popularCityCodes = [
+      44,    // Москва
+      137,   // Санкт-Петербург
+      270,   // Новосибирск
+      2233,  // Екатеринбург
+      344,   // Казань
+      555,   // Нижний Новгород
+      1438,  // Челябинск
+      1442,  // Красноярск
+      1106,  // Самара
+      1092,  // Ростов-на-Дону
+      1103,  // Уфа
+      479,   // Краснодар
+      1428,  // Омск
+      1113,  // Воронеж
+      1099,  // Пермь
+      1104,  // Волгоград
+    ];
+
+    this.logger.log('🔄 Начинаем предзагрузку координат популярных городов...');
+    
+    try {
+      const detailsMap = await this.getCitiesDetailsBatch(popularCityCodes);
+      this.logger.log(`✅ Предзагружено ${detailsMap.size} популярных городов в кэш`);
+    } catch (error) {
+      this.logger.warn('Ошибка при предзагрузке городов:', error.message);
     }
   }
 
@@ -570,22 +620,287 @@ export class CdekService implements OnModuleInit {
     const response = await this.post('/v2/calculator/tarifflist', body);
     console.log(response);
     this.logger.log('Ответ CDEK API:', JSON.stringify(response.data, null, 2));
-    return response as CalcTariffListResponseDto;
+    
+    // Оптимизируем тарифы перед возвратом
+    const optimizedResponse = this.optimizeTariffs(response as CalcTariffListResponseDto);
+    
+    return optimizedResponse;
   }
 
-  /** /v2/location/suggest/cities */
+  /**
+   * Оптимизация списка тарифов: возвращаем 4-5 лучших вариантов
+   * - Самый быстрый
+   * - Самый дешевый
+   * - Оптимальный (лучшее соотношение цены/скорости)
+   * - Дополнительные варианты (если есть)
+   */
+  private optimizeTariffs(response: CalcTariffListResponseDto): CalcTariffListResponseDto {
+    if (!response.tariff_codes || response.tariff_codes.length === 0) {
+      return response;
+    }
+
+    const tariffs = response.tariff_codes;
+    const selectedTariffs = new Map<string, any>();
+
+    // 1. Самый быстрый тариф (минимальное время доставки)
+    const fastest = tariffs.reduce((prev, curr) => {
+      const prevMin = prev.period_min ?? prev.calendar_min ?? 999;
+      const currMin = curr.period_min ?? curr.calendar_min ?? 999;
+      return currMin < prevMin ? curr : prev;
+    });
+    selectedTariffs.set('fastest', { ...fastest, category: 'Самый быстрый' });
+
+    // 2. Самый дешевый тариф
+    const cheapest = tariffs.reduce((prev, curr) => {
+      return (curr.delivery_sum ?? Infinity) < (prev.delivery_sum ?? Infinity) ? curr : prev;
+    });
+    if (cheapest.tariff_code !== fastest.tariff_code) {
+      selectedTariffs.set('cheapest', { ...cheapest, category: 'Самый дешевый' });
+    }
+
+    // 3. Оптимальный тариф (баланс цены и скорости)
+    // Вычисляем "оценку" для каждого тарифа: нормализованная цена + нормализованное время
+    const minPrice = Math.min(...tariffs.map(t => t.delivery_sum ?? Infinity));
+    const maxPrice = Math.max(...tariffs.map(t => t.delivery_sum ?? 0));
+    const minTime = Math.min(...tariffs.map(t => t.period_min ?? t.calendar_min ?? Infinity));
+    const maxTime = Math.max(...tariffs.map(t => t.period_min ?? t.calendar_min ?? 0));
+
+    const optimal = tariffs.reduce((prev, curr) => {
+      const normPrice = (curr.delivery_sum - minPrice) / (maxPrice - minPrice || 1);
+      const currTime = curr.period_min ?? curr.calendar_min ?? maxTime;
+      const normTime = (currTime - minTime) / (maxTime - minTime || 1);
+      const currScore = normPrice * 0.5 + normTime * 0.5; // Равный вес цены и времени
+
+      const prevPrice = (prev.delivery_sum - minPrice) / (maxPrice - minPrice || 1);
+      const prevTime = prev.period_min ?? prev.calendar_min ?? maxTime;
+      const prevNormTime = (prevTime - minTime) / (maxTime - minTime || 1);
+      const prevScore = prevPrice * 0.5 + prevNormTime * 0.5;
+
+      return currScore < prevScore ? curr : prev;
+    });
+
+    if (optimal.tariff_code !== fastest.tariff_code && optimal.tariff_code !== cheapest.tariff_code) {
+      selectedTariffs.set('optimal', { ...optimal, category: 'Оптимальный' });
+    }
+
+    // 4. Добавляем 1-2 дополнительных тарифа (если есть)
+    const remaining = tariffs.filter(
+      t => !Array.from(selectedTariffs.values()).some(s => s.tariff_code === t.tariff_code)
+    );
+
+    // Сортируем оставшиеся по популярности (пример: по среднему рейтингу)
+    remaining.sort((a, b) => {
+      // Предпочитаем тарифы со средними характеристиками
+      const aTime = a.period_min ?? a.calendar_min ?? 0;
+      const bTime = b.period_min ?? b.calendar_min ?? 0;
+      const aPrice = a.delivery_sum ?? 0;
+      const bPrice = b.delivery_sum ?? 0;
+      
+      return Math.abs(aTime - (minTime + maxTime) / 2) + Math.abs(aPrice - (minPrice + maxPrice) / 2) -
+             (Math.abs(bTime - (minTime + maxTime) / 2) + Math.abs(bPrice - (minPrice + maxPrice) / 2));
+    });
+
+    remaining.slice(0, 2).forEach((tariff, index) => {
+      selectedTariffs.set(`extra-${index}`, { ...tariff, category: 'Дополнительный' });
+    });
+
+    const optimizedTariffs = Array.from(selectedTariffs.values());
+    
+    this.logger.log(`📊 Тарифы оптимизированы: ${tariffs.length} → ${optimizedTariffs.length}`);
+    optimizedTariffs.forEach(t => {
+      this.logger.log(`   [${t.category}] ${t.tariff_name}: ${t.delivery_sum}₽, ${t.period_min ?? t.calendar_min}дн`);
+    });
+
+    return {
+      ...response,
+      tariff_codes: optimizedTariffs,
+    };
+  }
+
+  /**
+   * Получение детальной информации о городе из кэша или API
+   */
+  private async getCityDetails(cityCode: number): Promise<any | null> {
+    // Проверяем кэш
+    const cached = this.cityCache.get(cityCode);
+    if (cached && Date.now() - cached.timestamp < this.CACHE_TTL) {
+      return cached.data;
+    }
+
+    // Если не в кэше, запрашиваем у API
+    try {
+      const res = await this.get('/v2/location/cities', { code: cityCode });
+      if (Array.isArray(res.data) && res.data.length > 0) {
+        const cityData = res.data[0];
+        
+        // Сохраняем в кэш
+        this.cityCache.set(cityCode, {
+          code: cityCode,
+          data: cityData,
+          timestamp: Date.now(),
+        });
+        
+        // Ограничиваем размер кэша
+        if (this.cityCache.size > this.MAX_CACHE_SIZE) {
+          const firstKey = this.cityCache.keys().next().value;
+          this.cityCache.delete(firstKey);
+        }
+        
+        return cityData;
+      }
+    } catch (error) {
+      this.logger.warn(`Не удалось получить детали для города ${cityCode}:`, error.message);
+    }
+    
+    return null;
+  }
+
+  /**
+   * Массовое получение детальной информации о городах (параллельно)
+   */
+  private async getCitiesDetailsBatch(cityCodes: number[]): Promise<Map<number, any>> {
+    const detailsMap = new Map<number, any>();
+    const codesToFetch: number[] = [];
+    
+    // Проверяем кэш для каждого кода
+    for (const code of cityCodes) {
+      const cached = this.cityCache.get(code);
+      if (cached && Date.now() - cached.timestamp < this.CACHE_TTL) {
+        detailsMap.set(code, cached.data);
+      } else {
+        codesToFetch.push(code);
+      }
+    }
+    
+    // Если все в кэше, возвращаем сразу
+    if (codesToFetch.length === 0) {
+      this.logger.log(`✅ Все ${cityCodes.length} городов найдены в кэше`);
+      return detailsMap;
+    }
+    
+    this.logger.log(`🔍 Запрос ${codesToFetch.length} городов из ${cityCodes.length} (остальные из кэша)`);
+    
+    try {
+      // Делаем один запрос для всех недостающих кодов
+      const res = await this.get('/v2/location/cities', {
+        code: codesToFetch,
+        size: codesToFetch.length
+      });
+      
+      if (Array.isArray(res.data)) {
+        res.data.forEach(detail => {
+          if (detail.code) {
+            detailsMap.set(detail.code, detail);
+            
+            // Сохраняем в кэш
+            this.cityCache.set(detail.code, {
+              code: detail.code,
+              data: detail,
+              timestamp: Date.now(),
+            });
+          }
+        });
+        
+        this.logger.log(`✅ Получено ${res.data.length} городов, сохранено в кэш`);
+      }
+      
+      // Ограничиваем размер кэша
+      while (this.cityCache.size > this.MAX_CACHE_SIZE) {
+        const firstKey = this.cityCache.keys().next().value;
+        this.cityCache.delete(firstKey);
+      }
+    } catch (error) {
+      this.logger.warn('Ошибка массового получения координат:', error.message);
+    }
+    
+    return detailsMap;
+  }
+
+  /** /v2/location/suggest/cities - с кэшированием координат */
   async suggestCities(params: {
     name: string;
     country_codes?: string;
     size?: number;
   }) {
+    const startTime = Date.now();
+    
     const queryParams = {
       name: params.name,
       country_codes: params.country_codes || 'RU',
       size: params.size || 10,
     };
+    
+    // Основной запрос на поиск городов
     const res = await this.get('/v2/location/suggest/cities', queryParams);
-    return res.data;
+    const suggestTime = Date.now() - startTime;
+    
+    const cities = res.data;
+    if (!Array.isArray(cities) || cities.length === 0) {
+      return cities;
+    }
+    
+    // Получаем коды городов
+    const cityCodes = cities.map(city => city.code).filter(Boolean);
+    
+    if (cityCodes.length === 0) {
+      return cities;
+    }
+    
+    try {
+      // Получаем детали всех городов одним запросом (с кэшем)
+      const detailsMap = await this.getCitiesDetailsBatch(cityCodes);
+      const totalTime = Date.now() - startTime;
+      
+      this.logger.log(
+        `⏱️ suggestCities: suggest=${suggestTime}ms, total=${totalTime}ms, cache_size=${this.cityCache.size}`
+      );
+      
+      // Обогащаем исходные данные координатами
+      return cities.map(city => {
+        const details = detailsMap.get(city.code);
+        if (details) {
+          return {
+            ...city,
+            latitude: details.latitude,
+            longitude: details.longitude,
+            region: details.region,
+            region_code: details.region_code,
+            sub_region: details.sub_region,
+            postal_codes: details.postal_codes,
+          };
+        }
+        return city;
+      });
+    } catch (error) {
+      this.logger.warn('Не удалось получить координаты городов:', error.message);
+      return cities;
+    }
+  }
+
+  /**
+   * Получение статистики кэша городов
+   */
+  getCacheStats() {
+    return {
+      size: this.cityCache.size,
+      maxSize: this.MAX_CACHE_SIZE,
+      ttlHours: this.CACHE_TTL / (60 * 60 * 1000),
+      cities: Array.from(this.cityCache.values()).map(c => ({
+        code: c.code,
+        name: c.data.city,
+        age_minutes: Math.round((Date.now() - c.timestamp) / 60000),
+      })),
+    };
+  }
+
+  /**
+   * Очистка кэша городов
+   */
+  clearCityCache() {
+    const size = this.cityCache.size;
+    this.cityCache.clear();
+    this.logger.log(`🗑️ Очищен кэш городов (${size} записей)`);
+    return { cleared: size };
   }
 
   /** /v2/location/regions */

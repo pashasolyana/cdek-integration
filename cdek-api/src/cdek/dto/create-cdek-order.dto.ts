@@ -407,6 +407,10 @@ export class PackageRequestDto {
   @IsOptional()
   @IsString()
   package_id?: string;
+
+  @ApiPropertyOptional({ description: 'Если "payment": 1 — доставку оплачивает получатель (при получении). Если "payment": 0 или параметр отсутствует — доставку оплачивает отправитель ' })
+  @IsOptional()
+  payment?: any
 }
 
 // ======== Root DTO

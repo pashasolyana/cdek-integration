@@ -728,4 +728,99 @@ export class CdekController {
       );
     }
   }
+
+  @ApiOperation({
+    summary: 'Статистика кэша городов',
+    description: 'Получить информацию о текущем состоянии кэша координат городов',
+  })
+  @ApiResponse({
+    status: 200,
+    description: 'Статистика кэша',
+    schema: {
+      type: 'object',
+      properties: {
+        success: { type: 'boolean' },
+        cache: {
+          type: 'object',
+          properties: {
+            size: { type: 'number' },
+            maxSize: { type: 'number' },
+            ttlHours: { type: 'number' },
+            cities: {
+              type: 'array',
+              items: {
+                type: 'object',
+                properties: {
+                  code: { type: 'number' },
+                  name: { type: 'string' },
+                  age_minutes: { type: 'number' },
+                },
+              },
+            },
+          },
+        },
+      },
+    },
+  })
+  @ApiBearerAuth()
+  @Get('cache/stats')
+  async getCacheStats() {
+    try {
+      const stats = this.cdekService.getCacheStats();
+      return {
+        success: true,
+        cache: stats,
+        message: 'Статистика кэша получена',
+      };
+    } catch (error) {
+      this.logger.error('Ошибка получения статистики кэша:', error.message);
+      throw new HttpException(
+        {
+          success: false,
+          message: 'Не удалось получить статистику кэша',
+          error: error.message,
+        },
+        HttpStatus.INTERNAL_SERVER_ERROR,
+      );
+    }
+  }
+
+  @ApiOperation({
+    summary: 'Очистить кэш городов',
+    description: 'Полностью очищает кэш координат городов',
+  })
+  @ApiResponse({
+    status: 200,
+    description: 'Кэш очищен',
+    schema: {
+      type: 'object',
+      properties: {
+        success: { type: 'boolean' },
+        cleared: { type: 'number' },
+        message: { type: 'string' },
+      },
+    },
+  })
+  @ApiBearerAuth()
+  @Post('cache/clear')
+  async clearCache() {
+    try {
+      const result = this.cdekService.clearCityCache();
+      return {
+        success: true,
+        ...result,
+        message: `Кэш очищен (${result.cleared} записей)`,
+      };
+    } catch (error) {
+      this.logger.error('Ошибка очистки кэша:', error.message);
+      throw new HttpException(
+        {
+          success: false,
+          message: 'Не удалось очистить кэш',
+          error: error.message,
+        },
+        HttpStatus.INTERNAL_SERVER_ERROR,
+      );
+    }
+  }
 }
