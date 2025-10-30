@@ -57,3 +57,19 @@ public/dist/
 
 # === Docker ===
 docker-compose.override.yml
+
+# === SSL & Certbot ===
+certbot/
+
+# === Nginx runtime ===
+nginx/conf.d/*.conf
+
+# === Backups ===
+backups/
+*.sql
+*.dump
+
+# === Docker volumes (if extracted) ===
+postgres_data/
+redis_data/
+nginx_logs/
