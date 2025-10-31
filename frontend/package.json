@@ -23,7 +23,7 @@
     "maska": "^3.2.0",
     "pinia": "^3.0.3",
     "vue": "^3.5.18",
-    "vue-router": "^4.5.1",
+    "vue-router": "^4.6.3",
     "vue-yandex-maps": "^2.2.3"
   },
   "devDependencies": {

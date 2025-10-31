@@ -10,6 +10,7 @@ import CreateOrderView from '@/views/CreateOrderView.vue'
 import HomeView from '@/views/HomeView.vue'
 import OrdersView from '@/views/OrdersView.vue'
 import ProfileView from '@/views/ProfileView.vue'
+import AdminView from '@/views/AdminView.vue'
 
 type RouteMetaFlags = {
   requiresAuth?: boolean
@@ -58,13 +59,13 @@ const router = createRouter({
       path: '/forgot-password',
       name: 'forgot',
       component: ForgotPassword,
-      meta: { guest: true, hideFooter: true },
+      // meta: { guest: true, hideFooter: true },
     },
     {
       path: '/profile',
       name: 'profile',
       component: ProfileView,
-      meta: { requiresAuth: true },
+      // meta: { requiresAuth: true },
     },
     {
       path: '/404',
@@ -79,7 +80,11 @@ const router = createRouter({
       path: '/order/create',
       name: 'order-create',
       component: CreateOrderView,
-        meta: { requiresAuth: true },
+      // meta: { requiresAuth: true },
+    },
+    {
+      path: '/admin',
+      component: AdminView,
     },
   ],
 })

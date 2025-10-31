@@ -70,7 +70,8 @@ const selectOption = (option: { value: string; label: string }) => {
     </div>
 
     <ul v-if="isOpen" class="dropdown-options">
-      <li v-for="option in options" :key="option.value" @click.stop="selectOption(option)">
+      <li class="option-placeholder">{{ placeholder }}</li>
+      <li class="option" v-for="option in options" :key="option.value" @click.stop="selectOption(option)">
         {{ option.label }}
       </li>
     </ul>
@@ -120,11 +121,17 @@ const selectOption = (option: { value: string; label: string }) => {
   z-index: 10;
 }
 
-.dropdown-options li {
+.option-placeholder {
+  opacity: 0.5;
+  cursor: default;
   padding: 6px 10px;
 }
 
-.dropdown-options li:hover {
+.option {
+  padding: 6px 10px;
+}
+
+.option:hover {
   background: #f0f0f0;
 }
 </style>

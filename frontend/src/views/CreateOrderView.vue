@@ -1394,7 +1394,7 @@ const resetForm = () => {
         v-model="deliveryMethod"
         :options="deliveryMethodOptions"
         placeholder="Способ доставки"
-        width="82dvw"
+        width="1260px"
         height="54px"
       />
     </section>
@@ -1410,7 +1410,7 @@ const resetForm = () => {
               :suggestions="fromCitySuggestions"
               :loading="fromCityLoading"
               placeholder="Город отправления"
-              width="308px"
+              width="413px"
               height="54px"
               :error="formErrors.fromCity"
               @select="handleFromCitySelect"
@@ -1420,7 +1420,7 @@ const resetForm = () => {
               :suggestions="fromAddressSuggestions"
               :loading="fromAddressLoading"
               placeholder="Адрес отправления"
-              width="308px"
+              width="413px"
               height="54px"
               @select="handleFromAddressSelect"
             />
@@ -1510,7 +1510,7 @@ const resetForm = () => {
           <Input
             v-model="fromPostalCode"
             height="54px"
-            width="278px"
+            width="413px"
             placeholder="Индекс"
             :error="formErrors.fromPostalCode"
           />
@@ -1537,7 +1537,7 @@ const resetForm = () => {
               :suggestions="toCitySuggestions"
               :loading="toCityLoading"
               placeholder="Город получателя"
-              width="308px"
+              width="413px"
               height="54px"
               :error="formErrors.toCity"
               @select="handleToCitySelect"
@@ -1547,7 +1547,7 @@ const resetForm = () => {
               :suggestions="toAddressSuggestions"
               :loading="toAddressLoading"
               placeholder="Адрес получателя"
-              width="308px"
+              width="413px"
               height="54px"
               @select="handleToAddressSelect"
             />
@@ -1580,7 +1580,7 @@ const resetForm = () => {
           <Input
             v-model="toPostalCode"
             height="54px"
-            width="278px"
+            width="413px"
             placeholder="Индекс"
             :error="formErrors.toPostalCode"
           />
@@ -2000,7 +2000,7 @@ const resetForm = () => {
   display: flex;
   align-items: center;
   justify-content: center;
-  width: 180px;
+  width: 170px;
   height: 54px;
   background-color: #d61b1b;
   border: none;
